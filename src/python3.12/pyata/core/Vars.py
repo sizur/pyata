@@ -147,8 +147,10 @@ class Substitutions(FacetABC[Var, Any], FacetRichReprMixin[Var]):
         val: Any,
         tracked: set[Var]
     ) -> Ctx:
-        # NOTE: Constraint propagation has already been done by substitution hooks.
-        return cls.update(ctx, {var: val for var in tracked})
+        ctx = cls.update(ctx, {var: val for var in tracked})
+        # Giving more constraint propagation opportunities.
+        ctx, _ = HooksPipelines.run(ctx, cls._walk_condense, (val, tracked))
+        return ctx
     
     @classmethod
     def hook_sub(

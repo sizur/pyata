@@ -111,7 +111,7 @@ class BoundFacet[K: Hashable, V: Hashable](
 
 
 class FacetBindable[K: Hashable, V: Hashable](Protocol):
-    def __new__(cls: type[Self], ctx: Ctx) -> 'BoundFacet[K, V]':
+    def __new__(cls: type[Self], ctx: Ctx) -> BoundFacet[K, V]:
         raise NotImplementedError
 
 

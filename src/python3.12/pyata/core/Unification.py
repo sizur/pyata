@@ -3,7 +3,7 @@
 
 from typing import Any, Iterator, Self
 
-from .Types import Ctx
+from .Types import Ctx, Facet
 from .Hooks import HooksPipelines, HookPipelineCB
 from .Vars import Var, __, Substitutions
 from ..immutables import Map
@@ -13,7 +13,7 @@ __all__: list[str] = ['Unification']
 
 
 class Unification:
-    Failed: Ctx = Map()
+    Failed: Ctx = Map[type[Facet[Any, Any]], Map[Any, Any]]()
     
     @classmethod
     def unify(cls: type[Self], ctx: Ctx, x: Any, y: Any) -> Ctx:

@@ -452,10 +452,8 @@ class Metrics:
     
     def get_latest_seconds_of_sensor(
         self: Self,
-        sensor: 'Metrics.Sensor[Any]',
+        sensor: Metrics.Sensor[Any],
         n: int = 0
     ) -> Iterable[NP.ndarray[Any, Any]]:
         return MetricsPerSec[NP.ndarray[Any, Any]].get_latest_seconds(
             self.ctx, MetricsRegistry.get_key(self.ctx, sensor), n)
-
-
