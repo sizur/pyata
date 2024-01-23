@@ -1,0 +1,68 @@
+
+[project]
+
+name = "pyata"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "immutables",
+    "pydantic_settings",
+    "sympy",
+    "rich",
+    "more_itertools",
+    "numpy",
+    "scipy",
+]
+authors = [
+    { name = "Yevgeniy Grigoryev" },
+]
+maintainers = [
+    { name = "Yevgeniy Grigoryev" },
+]
+
+readme = {file = "README.md", content-type = "text/markdown"}
+
+description = "5th Generation Language for Python"
+
+keywords = [
+    'logic', 'relational', 'miniKanren', 'constraint', 'solver', 'declarative',
+     '5gl', 'prolog',
+]
+
+license = {file = "LICENSE"}
+
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Software Development :: Code Generators",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+
+[tool.flake8]
+ignore = "E265"
+
+[tool.pyright]
+
+include = ["src/python3.12", ".venv/lib/python3.12/site-packages"]
+
+
+pythonPlatform = "All"
+
+ignore = ["src/oldstuff"]
+
+# defineConstant = { DEBUG = true }
+
+pythonVersion = "3.12"
+
+executionEnvironments = [
+    { root = "src/python3.12" }
+]
+
+typeCheckingMode = "strict"
+strictDictionaryInference = true
+
