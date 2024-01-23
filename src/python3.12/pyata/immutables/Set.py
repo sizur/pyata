@@ -3,12 +3,12 @@
 
 from abc import ABC
 from collections import abc as AB
-from typing import Any, Callable, Hashable, Iterable, Iterator, Self, Sized, cast
+from typing import Any, Callable, ClassVar, Hashable, Iterable, Iterator, Self, Sized, cast
 
 import immutables
 from rich import repr
 
-__all__ = ['Set']
+__all__ = ['Set', 'SetMutation']
 
 class SetABC[
     V: Hashable,
@@ -66,12 +66,20 @@ class Set[T: Hashable](SetABC[T, immutables.Map[T, None]]):
     Much lighter mutations than `frozenset` on large sets.
     """
     __slots__ = ()
+    __empty_singleton: ClassVar[Self]
     
-    def __init__(self: Self, set: set[T] | immutables.Map[T, None] = immutables.Map()) -> None:
+    def __new__(cls: type[Self], set: Iterable[T] | None = None) -> Self:
+        if set is None:
+            return cls.__empty_singleton
+        return super().__new__(cls)
+    
+    def __init__(self: Self, set: Iterable[T] | None = None) -> None:
         if isinstance(set, Set):
-            self.impl = cast(Set[T], set).impl
+            self.impl = set.impl
         elif isinstance(set, immutables.Map):
             self.impl = set
+        elif set is None:
+            return
         else:
             self.impl = immutables.Map({v: None for v in set})
     
@@ -79,6 +87,8 @@ class Set[T: Hashable](SetABC[T, immutables.Map[T, None]]):
         return type(self)(self.impl.set(value, None))
     
     def discard(self: Self, value: T) -> Self:
+        if value not in self.impl:
+            return self
         return type(self)(self.impl.delete(value))
     
     def mutate(self: Self, mutator: 'Callable[[SetMutation[T]], None]') -> Self:
@@ -111,6 +121,8 @@ class Set[T: Hashable](SetABC[T, immutables.Map[T, None]]):
         for other in others:
             self = self | other
         return self
+Set.__empty_singleton = Set(  # pyright: ignore[reportPrivateUsage]
+    immutables.Map())
 
 class SetMutation[T: Hashable](AB.MutableSet[T], SetABC[T, immutables.MapMutation[T, None]]):
     __slots__ = ()

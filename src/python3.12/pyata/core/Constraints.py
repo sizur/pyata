@@ -105,10 +105,10 @@ class ConstraintVarsABC(ABC, Constraint):
         # NOTE: ASSUMPTION: `var` did Substitutions.walk already.
         richreprable: RichReprable
         try:
-            richreprable = var.__ctx_rich_repr__(ctx)
+            richreprable = type(var).__ctx_rich_repr__(ctx)
         except AttributeError:
             try:
-                richreprable = type(var).__ctx_rich_repr__(ctx)
+                richreprable = var.__ctx_rich_repr__(ctx)
             except AttributeError:
                 return RY.pretty_repr(var)
         return RY.pretty_repr(richreprable)

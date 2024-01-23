@@ -13,6 +13,7 @@ dependencies = [
     "numpy",
     "scipy",
 ]
+
 authors = [
     { name = "Yevgeniy Grigoryev" },
 ]
@@ -22,7 +23,7 @@ maintainers = [
 
 readme = {file = "README.md", content-type = "text/markdown"}
 
-description = "5th Generation Language for Python"
+description = "5th Generation Python"
 
 keywords = [
     'logic', 'relational', 'miniKanren', 'constraint', 'solver', 'declarative',
@@ -34,6 +35,8 @@ license = {file = "LICENSE"}
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",
     "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "Intended Audience :: Science/Research",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
@@ -42,13 +45,25 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pyright",
+    "pytest",
+    "pytest-timeout",
+    "sphinx",
+    "sphinx-rtd-theme",
+]
+
+[project.urls]
+Repository = "https://github.com/sizur/pyata"
 
 [tool.flake8]
 ignore = "E265"
 
 [tool.pyright]
 
-include = ["src/python3.12", ".venv/lib/python3.12/site-packages"]
+extraPaths = ["src/python3.12"]
+include = ["src/python3.12", "tests/python3.12"]
 
 
 pythonPlatform = "All"
@@ -60,9 +75,29 @@ ignore = ["src/oldstuff"]
 pythonVersion = "3.12"
 
 executionEnvironments = [
-    { root = "src/python3.12" }
+    { root =   "src/python3.12" },
+    { root = "tests/python3.12", include = ["src/python3.12"] },
 ]
 
 typeCheckingMode = "strict"
 strictDictionaryInference = true
 
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = " --strict-config -ra -q --timeout=1"
+python_files = "*.py"
+testpaths = [
+    "tests/python3.12",
+]
+markers = [
+    "smoke: mark a test as a smoke test",
+]
+
+[build-system]
+requires = ["setuptools>=61.0", "build"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src/python3.12"]
+include = ["pyata*"]
+namespaces = true

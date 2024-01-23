@@ -6,7 +6,7 @@ from typing import Any, ClassVar, Final, Iterable, Iterator, Protocol, Self, cas
 
 import numpy          as NP
 import more_itertools as MI
-import scipy.stats    as SS
+import scipy.stats    as SS  # pyright: ignore[reportMissingTypeStubs]
 
 from  .Types      import ( Ctx, isBroadcastKey, HookEventCB #
                          , HookBroadcastCB, BroadcastKey    )
