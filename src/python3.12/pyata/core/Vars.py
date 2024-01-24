@@ -8,21 +8,20 @@ from typing import (
 
 import immutables     as IM
 import rich.repr      as RR
+import rich.pretty    as RY
 import sympy          as SY
 
-from .Facets import FacetABC, FacetRichReprMixin, RichReprable, Ctx
-from .Hooks import HooksEvents, HooksPipelines, HookEventCB, HookPipelineCB
+from .Types  import ( Ctx, RichReprable                           #
+                    , isCtxSelfRichReprable, isCtxClsRichReprable )
+from .Facets import ( FacetABC, FacetRichReprMixin, HooksEvents   #
+                    , HooksPipelines, HookEventCB, HookPipelineCB )
 
 
 __all__: list[str] = [
     'Var', 'VarTypes', 'Substitutions', 'Vars', 'TypeAssumps', 'SymAssumps',
-    '__'
+    '__', 'CtxVarRichRepr'
 ]
 
-
-Var = SY.Symbol
-
-__: Final[Var] = Var("__")
 
 # When a variable is assigned a type, it may have a set of
 # `sympy` assumptions (defined here) associated with it.
@@ -55,6 +54,33 @@ class SymAssumps(TypedDict, total=False):
     transcendental       : bool
     zero                 : bool
 
+
+Var = SY.Symbol
+
+__: Final[Var] = Var("__")
+
+# TODO: maybe not needed?
+class CtxVarRichRepr:
+    def __init__(self: Self, ctx: Ctx, var: Var) -> None:
+        self.var: Var = var
+        ctx, val = Substitutions.walk(ctx, var)
+        if var == val or isinstance(val, Var):
+            pass
+        elif isCtxSelfRichReprable(val):
+            ctx, val = val.__ctx_self_rich_repr__(ctx)
+        elif isCtxClsRichReprable(val):
+            ctx, val = val.__ctx_cls_rich_repr__(ctx)
+        self.ctx = ctx
+        self.val: Any = val
+        
+    def __rich_repr__(self: Self) -> RR.Result:
+        if self.var == self.val:
+            yield RY.pretty_repr(self.var)
+        else:
+            yield RY.pretty_repr(self.var), RY.pretty_repr(self.val)
+CtxVarRichRepr.__name__ = '_'
+
+
 VAR_TYP_ASSUMPS: Final[dict[type, SymAssumps]] = {
     int: SymAssumps(integer  = True, finite = True)
 }
@@ -76,7 +102,7 @@ class TypeAssumps(FacetABC[type, IM.Map[str, bool]], FacetRichReprMixin[type]):
                 ) for t, sa in defs.items()})
     
     @classmethod
-    def __ctx_rich_repr__(cls: type[Self], ctx: Ctx) -> tuple[Ctx, RichReprable]:
+    def __ctx_cls_rich_repr__(cls: type[Self], ctx: Ctx) -> tuple[Ctx, RichReprable]:
         class TypeAssumpsRichRepr:
             def __init__(self: Self, cls: type[TypeAssumps], ctx: Ctx) -> None:
                 self.cls: type[TypeAssumps] = cls

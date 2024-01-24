@@ -8,13 +8,18 @@ from typing     import Any, ClassVar, Set, Self
 import rich.repr   as RR
 import rich.pretty as RY
 
-from  .Types       import Ctx, Constraint, RichReprable
-from  .Facets      import FacetABC, FacetRichReprMixin
-from  .Vars        import Var, Substitutions
-from  .Hooks       import HooksEvents, HookEventCB
-from  .Unification import Unification
-from ..immutables  import Set
+from  .Types       import ( Ctx, Constraint, RichReprable               #
+                          , isCtxClsRichReprable, isCtxSelfRichReprable )
+from  .Facets      import ( FacetABC, FacetRichReprMixin, HooksEvents   #
+                          , HookEventCB                                 )
+from  .Vars        import   Var, Substitutions
+from  .Unification import   Unification
+from ..immutables  import   Set
 
+
+__all__: list[str] = [
+    'Constraints', 'ConstraintVarsABC', 'Neq', 'Distinct'
+]
 
 class Constraints(FacetABC[Var, Set[Constraint]], FacetRichReprMixin[Var]):
     default: ClassVar[Set[Constraint]] = Set()
@@ -73,7 +78,7 @@ class Constraints(FacetABC[Var, Set[Constraint]], FacetRichReprMixin[Var]):
 
     @classmethod
     def _val_repr(cls: type[Self], ctx: Ctx, key: Var) -> Any:
-        return {c.__ctx_rich_repr__(ctx) for c in cls.get(ctx, key)}
+        return {c.__ctx_self_rich_repr__(ctx)[1] for c in cls.get(ctx, key)}
     
     @classmethod
     def install(cls: type[Self], ctx: Ctx) -> Ctx:
@@ -82,14 +87,10 @@ class Constraints(FacetABC[Var, Set[Constraint]], FacetRichReprMixin[Var]):
 
 class ConstraintVarsABC(ABC, Constraint):
     vars: tuple[Var, ...]
-    RichReprDecorator: type[RichReprable]
+    RichReprDecor: type[RichReprable]
     
     @abstractmethod
     def __call__(self: Self, ctx: Ctx) -> Ctx:
-        raise NotImplementedError
-    
-    @abstractmethod
-    def __constraint_rich_repr__(self: Self, ctx: Ctx) -> RR.Result:
         raise NotImplementedError
     
     def constrain(self: Self, ctx: Ctx) -> Ctx:
@@ -101,18 +102,6 @@ class ConstraintVarsABC(ABC, Constraint):
         for var in self.vars:
             yield var
     
-    def _try_rich_repr_var(self: Self, ctx: Ctx, var: Any) -> str:
-        # NOTE: ASSUMPTION: `var` did Substitutions.walk already.
-        richreprable: RichReprable
-        try:
-            richreprable = type(var).__ctx_rich_repr__(ctx)
-        except AttributeError:
-            try:
-                richreprable = var.__ctx_rich_repr__(ctx)
-            except AttributeError:
-                return RY.pretty_repr(var)
-        return RY.pretty_repr(richreprable)
-    
     def __init_subclass__(cls: type[Self], **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
         class RichRepr[C: ConstraintVarsABC](RichReprable):
@@ -120,15 +109,36 @@ class ConstraintVarsABC(ABC, Constraint):
                 self.ego: C   = ego
                 self.ctx: Ctx = ctx
             def __rich_repr__(self: Self) -> RR.Result:
-                yield from self.ego.__constraint_rich_repr__(self.ctx)
+                ctx, ego = self.ctx, self.ego
+                if ego(ctx) is Unification.Failed:
+                    yield False
+                for v in ego.vars:
+                    ctx, w = Substitutions.walk(ctx, v)
+                    if w == v:
+                        yield cls._repr(ctx, v)
+                    else:
+                        yield (RY.pretty_repr(cls._repr(ctx, v)),
+                               cls._repr(ctx, w))
         RichRepr.__name__ = cls.__name__
-        cls.RichReprDecorator = RichRepr
+        cls.RichReprDecor = RichRepr
     
-    def __ctx_rich_repr__(self: Self, ctx: Ctx) -> tuple[Ctx, RichReprable]:
-        return ctx, self.RichReprDecorator(self, ctx)
+    def __ctx_self_rich_repr__(self: Self, ctx: Ctx) -> tuple[Ctx, RichReprable]:
+        return ctx, self.RichReprDecor(self, ctx)
+    
+    @classmethod
+    def _repr(cls: type[Self], ctx: Ctx, val: Any) -> Any:
+        if isCtxSelfRichReprable(val):
+            return val.__ctx_self_rich_repr__(ctx)
+        elif isCtxClsRichReprable(val):
+            return val.__ctx_cls_rich_repr__(ctx)
+        else:
+            return val
 
 class Neq(ConstraintVarsABC):
     vars: tuple[Var, Var]
+    
+    def __init__(self: Self, x: Var, y: Var) -> None:
+        self.vars = (x, y)
     
     def __call__(self: Self, ctx: Ctx) -> Ctx:
         ctx, lhs = Substitutions.walk(ctx, self.vars[0])
@@ -136,21 +146,12 @@ class Neq(ConstraintVarsABC):
         if lhs == rhs:
             return Unification.Failed
         return ctx
-    
-    def __constraint_rich_repr__(self: Self, ctx: Ctx) -> RR.Result:
-        ctx, lhs = Substitutions.walk(ctx, self.vars[0])
-        ctx, rhs = Substitutions.walk(ctx, self.vars[1])
-        violated = lhs == rhs
-        lhs_repr = self._try_rich_repr_var(ctx, lhs)
-        rhs_repr = self._try_rich_repr_var(ctx, rhs)
-        if violated:
-            yield(f"[bold red]violated:[/bold red] "
-                  f"{lhs_repr} != {rhs_repr}"        )
-        else:
-            yield f"{lhs_repr} != {rhs_repr}"
 
 class Distinct(ConstraintVarsABC):
     vars: tuple[Var, ...]
+
+    def __init__(self: Self, *vars: Var) -> None:
+        self.vars = vars
 
     def __call__(self: Self, ctx: Ctx) -> Ctx:
         walked: set[Any] = set()
@@ -160,21 +161,3 @@ class Distinct(ConstraintVarsABC):
                 return Unification.Failed
             walked.add(val)
         return ctx
-    
-    def __constraint_rich_repr__(self: Self, ctx: Ctx) -> RR.Result:
-        violated: bool = False
-        walked: set[Any] = set()
-        valsreprs: list[tuple[Any, str]] = []
-        for var in self.vars:
-            ctx, val = Substitutions.walk(ctx, var)
-            repr = self._try_rich_repr_var(ctx, val)
-            valsreprs.append((val, repr))
-            if val in walked:
-                violated = True
-            walked.add(val)
-        if violated:
-            yield(f"[bold red]violated:[/bold red] "
-                  f"{', '.join([repr for _, repr in valsreprs])}")
-        else:
-            yield ', '.join([repr for _, repr in valsreprs])
-

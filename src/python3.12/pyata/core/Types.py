@@ -14,14 +14,15 @@ from rich.repr import Result as rich_repr_Result
 __all__: list[str] = [
 
     # Core Types
-    'Ctx', 'Facet',
+    'Ctx', 'NoCtx', 'Facet',
 
     # Facet Convenience Types (ContextManager)
     'FacetBindable', 'BoundFacet',
 
     # Rich Repr-able Types
     'FacetRichReprable', 'BoundFacetRichReprable', 'RichReprable',
-    'FacetKeyOrd',
+    'FacetKeyOrd', 'CtxClsRichReprable', 'CtxSelfRichReprable',
+    'isCtxClsRichReprable', 'isCtxSelfRichReprable', 'isRichReprable',
 
     # miniKanren Core Types
     'Stream', 'Goal', 'Constraint', 'Solver',
@@ -38,6 +39,7 @@ __all__: list[str] = [
 
 type Ctx = Map[type[Facet[Any, Any]], Map[Any, Any]]
 
+NoCtx: Ctx = Map[type['Facet[Any, Any]'], Map[Any, Any]]()
 
 #############################################################################
 #  Context Facet Types
@@ -129,19 +131,29 @@ class RichReprable(Protocol):
     def __rich_repr__(self: Self) -> rich_repr_Result:
         raise NotImplementedError
 
+def isRichReprable(obj: object) -> TypeGuard[RichReprable]:
+    return hasattr(obj, '__rich_repr__')
+
 class CtxClsRichReprable(Protocol):
     @classmethod
-    def __ctx_rich_repr__(cls: type[Self], ctx: Ctx) -> tuple[Ctx, RichReprable]:
+    def __ctx_cls_rich_repr__(cls: type[Self], ctx: Ctx) -> tuple[Ctx, RichReprable]:
         raise NotImplementedError
+
+def isCtxClsRichReprable(obj: object) -> TypeGuard[CtxClsRichReprable]:
+    return hasattr(obj, '__ctx_cls_rich_repr__')
 
 class FacetRichReprable(Facet[Any, Any], CtxClsRichReprable, Protocol): pass
 
 class CtxSelfRichReprable(Protocol):
-    def __ctx_rich_repr__(self: Self, ctx: Ctx) -> tuple[Ctx, RichReprable]:
+    def __ctx_self_rich_repr__(self: Self, ctx: Ctx) -> tuple[Ctx, RichReprable]:
         raise NotImplementedError
+
+def isCtxSelfRichReprable(obj: object) -> TypeGuard[CtxSelfRichReprable]:
+    return hasattr(obj, '__ctx_self_rich_repr__')
 
 class BoundFacetRichReprable(BoundFacet[Any, Any], CtxSelfRichReprable,
                              Protocol): pass
+
 
 
 #############################################################################

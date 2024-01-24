@@ -10,8 +10,7 @@ import scipy.stats    as SS  # pyright: ignore[reportMissingTypeStubs]
 
 from  .Types      import ( Ctx, isBroadcastKey, HookEventCB #
                          , HookBroadcastCB, BroadcastKey    )
-from  .Facets     import   FacetABC
-from  .Hooks      import   HooksEvents, HooksBroadcasts
+from  .Facets     import   FacetABC, HooksEvents, HooksBroadcasts
 from ..immutables import   Map, Cel, cons_to_iterable
 from ..config     import   Settings
 

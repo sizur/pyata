@@ -2,26 +2,29 @@
 # -*- coding: utf-8; mode: python -*-
 
 from __future__  import annotations
-from abc         import ABC
+from abc         import ABC, abstractmethod
 from collections import abc as AB
-from typing      import Any, Callable, ClassVar, Final, Iterable, Mapping, Self
+from typing      import ( Any, Callable, ClassVar, Final, Iterable, Mapping #
+                        , Self, cast                                        )
 
 import rich.repr   as RR
 import rich.pretty as RY
 
-from  .Types      import ( Ctx, Facet, FacetRichReprable, FacetKeyOrd #
-                         , RichReprable                               )
-from  .Hooks      import   HooksBroadcasts
-from ..immutables import   Map, MapMutation
+from  .Types      import ( Ctx, Facet, FacetRichReprable, FacetKeyOrd  #
+                         , RichReprable, HookBroadcastCB, HookEventCB  #
+                         , HookPipelineCB, BroadcastKey,  HookCB       #
+                         , isCtxClsRichReprable, isCtxSelfRichReprable )
+from ..immutables import   Map, MapMutation, Cel, cons_to_iterable
 from ..config     import   Settings
 
 
-__all__: list[str] = ['FacetABC', 'FacetRichReprMixin', 'CtxRichRepr']
+__all__: list[str] = [
+    'FacetABC'   , 'FacetRichReprMixin', 'CtxRichRepr'   , 'HooksABC',
+    'HooksEvents', 'HooksBroadcasts'   , 'HooksPipelines', 'HooksShortCircuit'
+]
 
 
 DEBUG: Final[bool] = Settings().DEBUG
-if DEBUG:
-    from .Hooks import HooksBroadcasts
 
 
 class FacetABC[K: AB.Hashable, V: AB.Hashable](
@@ -42,9 +45,9 @@ class FacetABC[K: AB.Hashable, V: AB.Hashable](
         """Get a value from a `Facet` of a `Context`."""
         return ctx.get(cls, cls.default_whole).get(key, cls.default)
     
-        #       ╭────────────────────────────────────────────────────────╮
+              # ╭────────────────────────────────────────────────────────╮
     if DEBUG: # │ -- BEGIN IF DEBUG SECTION -- BEGIN IF DEBUG SECTION -- │
-        #       ╰────────────────────────────────────────────────────────╯ 
+              # ╰────────────────────────────────────────────────────────╯ 
         
         @classmethod
         def set_whole(cls: type[Self], ctx: Ctx, whole: Map[K, V]) -> Ctx:
@@ -95,9 +98,9 @@ class FacetABC[K: AB.Hashable, V: AB.Hashable](
             ctx = HooksBroadcasts.run(ctx, cls_facet_key, mutator)
             return ctx
 
-        #       ╭────────────────────────────────────────────────────────╮
+          #     ╭────────────────────────────────────────────────────────╮
     else: #     │ --- ELSE IF DEBUG SECTION --- ELSE IF DEBUG SECTION -- │
-        #       ╰────────────────────────────────────────────────────────╯
+          #     ╰────────────────────────────────────────────────────────╯
             
         @classmethod
         def set_whole(cls: type[Self], ctx: Ctx, whole: Map[K, V]) -> Ctx:
@@ -134,7 +137,7 @@ class FacetABC[K: AB.Hashable, V: AB.Hashable](
     #           ╰────────────────────────────────────────────────────────╯ 
 
 class FacetRichReprMixin[K: AB.Hashable](FacetKeyOrd[K], FacetRichReprable, ABC):
-    RichReprDecorator: type[RichReprable]
+    RichReprDecor: type[RichReprable]
     
     @classmethod
     def __init_subclass__(cls: type[Self], **kwargs: Any) -> None:
@@ -150,10 +153,10 @@ class FacetRichReprMixin[K: AB.Hashable](FacetKeyOrd[K], FacetRichReprable, ABC)
                         yield (RY.pretty_repr(cls._key_repr(ctx, key)),
                                 cls._val_repr(ctx, key))
         RichRepr.__name__ = cls.__name__
-        cls.RichReprDecorator = RichRepr
+        cls.RichReprDecor = RichRepr
     
     @classmethod
-    def __ctx_rich_repr__(cls: type[Self], ctx: Ctx) -> tuple[Ctx, RichReprable]:
+    def __ctx_cls_rich_repr__(cls: type[Self], ctx: Ctx) -> tuple[Ctx, RichReprable]:
         """Rich repr of facet in Ctx."""
         # facet = cls.get_whole(ctx)
         # cached = FacetRichReprCache.get(ctx, cls)
@@ -162,7 +165,7 @@ class FacetRichReprMixin[K: AB.Hashable](FacetKeyOrd[K], FacetRichReprable, ABC)
         #     if richrepable is not None:
         #         return ctx, richrepable
 
-        richreprable = cls.RichReprDecorator(ctx)
+        richreprable = cls.RichReprDecor(ctx)
         # cached.set(facet, richreprable)
         # ctx = FacetRichReprCache.set(ctx, cls, cached)
         return ctx, richreprable
@@ -175,12 +178,22 @@ class FacetRichReprMixin[K: AB.Hashable](FacetKeyOrd[K], FacetRichReprable, ABC)
     
     @classmethod
     def _key_repr(cls: type[Self], ctx: Ctx, key: K) -> Any:
-        return key
+        if isCtxSelfRichReprable(key):
+            return key.__ctx_self_rich_repr__(ctx)
+        elif isCtxClsRichReprable(key):
+            return key.__ctx_cls_rich_repr__(ctx)
+        else:
+            return key
     
     @classmethod
     def _val_repr(cls: type[Self], ctx: Ctx, key: K) -> Any:
-        return cls.get(ctx, key)
-
+        val: Any = cls.get(ctx, key)
+        if isCtxSelfRichReprable(val):
+            return val.__ctx_self_rich_repr__(ctx)
+        elif isCtxClsRichReprable(val):
+            return val.__ctx_cls_rich_repr__(ctx)
+        else:
+            return val
 
 class CtxRichRepr:
     """`Context` decorator for `rich.repr`."""
@@ -200,7 +213,7 @@ class CtxRichRepr:
                 # no need to repr empty, ignores, or opt-outs.
                 continue
             # weaving context through.
-            ctx, richreprable = facet.__ctx_rich_repr__(ctx)
+            ctx, richreprable = facet.__ctx_cls_rich_repr__(ctx)
             richreprables.append(richreprable)
         self.richreprables = richreprables
         self.ctx = ctx
@@ -211,4 +224,155 @@ class CtxRichRepr:
     
     def __repr__(self: Self) -> str:
         return RY.pretty_repr(self)
-CtxRichRepr.__name__ = 'Context'
+CtxRichRepr.__name__ = 'Ctx'
+
+
+class HooksABC[H: HookCB[Any]](
+    FacetABC[AB.Hashable, Cel[H]],
+    FacetRichReprMixin[AB.Hashable],
+    ABC
+):
+    default: ClassVar[Cel[HookCB[Any]]] = ()
+    
+    @classmethod
+    def hook(cls: type[Self], ctx: Ctx, key: Any, cb: H) -> Ctx:
+        """Hook a callback to a key in context."""
+        return cls.set(ctx, key, (cb, cls.get(ctx, key)))
+
+    @classmethod
+    @abstractmethod
+    def run(cls: type[Self], ctx: Ctx, key: Any, arg: Any
+            ) -> Ctx | tuple[Ctx, Any]:
+        raise NotImplementedError
+    
+    @classmethod
+    def __init_subclass__(cls: type[Self], **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        class CBsRichReprBase(RichReprable):
+            def __init__(self: Self, ctx: Ctx, key: Any) -> None:
+                self.ctx: Ctx = ctx
+                self.key: Any = key
+            def __rich_repr__(self: Self) -> RR.Result:
+                yield from cls._val_repr(self.ctx, self.key)
+        class RichRepr(RichReprable):
+            def __init__(self: Self, ctx: Ctx) -> None:
+                self.ctx: Ctx = ctx
+            def __rich_repr__(self: Self) -> RR.Result:
+                key: Any
+                for key in cls.__key_ordered__(self.ctx):
+                    class CBsRichRepr(CBsRichReprBase): pass
+                    if type(key) is tuple:
+                        CBsRichRepr.__name__ = RY.pretty_repr(cls._key_repr(self.ctx, key))
+                    else:
+                        CBsRichRepr.__name__ = cls._key_repr(self.ctx, key)
+                    yield CBsRichRepr(self.ctx, key)
+        RichRepr.__name__ = cls.__name__
+        cls.RichReprDecor = RichRepr
+    
+    @classmethod
+    def _key_repr(cls: type[Self], ctx: Ctx, key: Any) -> Any:
+        key_: Any
+        if type(key) is tuple:
+            return cls._key_tuple_repr_name(ctx, cast(tuple[Any, ...], key))
+        try:
+            key_ = key.__qualname__
+        except AttributeError:
+            try:
+                key_ = key.__name__
+            except AttributeError:
+                return key
+        return key_
+
+    @classmethod
+    def _key_tuple_repr_name(
+        cls: type[Self],
+        ctx: Ctx,
+        key: tuple[Any, ...]
+    ) -> tuple[Any, ...]:
+        return tuple([cls._key_repr(ctx, k) for k in key])
+    
+    @classmethod
+    def __key_ordered__(cls: type[Self], ctx: Ctx) -> Iterable[Any]:
+        """Get whole facet keys in order from context.
+        
+        Ordering tuple keys, which are used for hierarchical broadcasts,
+        are treated as structured qualified names, making them conform
+        to the same alphanumeric ordering as other keys.
+        """
+        ret: list[Any] = sorted(list(cls.get_whole(ctx).keys()), key=(
+            lambda k: ('.'.join(
+                cls._key_repr(ctx, k)) if isinstance(k, tuple) else cls._key_repr(
+                    ctx, k)).lower()))
+        return ret
+    
+    @classmethod
+    def _val_repr(cls: type[Self], ctx: Ctx, key: Any) -> Any:
+        vals: list[Any] = []
+        val_: Any
+        for val in cons_to_iterable(cls.get(ctx, key)):
+            try:
+                val_ = val.__qualname__.replace('<locals>.', '')
+            except AttributeError:
+                try:
+                    val_ = val.__name__
+                except AttributeError:
+                    val_ = val
+            vals.append(val_)
+        return vals
+
+
+class HooksShortCircuit[T](Exception):
+    """Exception to short-circuit hooks."""
+    def __init__(self: Self, ctx: Ctx | None = None, val: T | None = None
+                 ) -> None:
+        self.ctx: Ctx | None = ctx
+        self.val: T   | None = val
+
+
+class HooksEvents[T](HooksABC[HookEventCB[T]]):
+    @classmethod
+    def run(cls: type[Self], ctx: Ctx, key: Any, arg: Any) -> Ctx:
+        cb: HookEventCB[Any]
+        for cb in cons_to_iterable(cls.get(ctx, key)):
+            try:
+                ctx = cb(ctx, arg)
+            except HooksShortCircuit[T] as e:
+                if e.ctx is not None:
+                    ctx = e.ctx
+                break
+        return ctx
+
+
+class HooksBroadcasts[T](HooksABC[HookBroadcastCB[T]]):
+    @classmethod
+    def run(cls: type[Self], ctx: Ctx, key: BroadcastKey, arg: T) -> Ctx:
+        """Broadcast arg to key callbacks in context."""
+        k: Any
+        for k in (key[:i] for i in range(len(key), 0, -1)):
+            for bcb in cons_to_iterable(cls.get(ctx, k)):
+                try:
+                    ctx = bcb(ctx, key, arg)
+                except HooksShortCircuit[T] as e:
+                    if e.ctx is not None:
+                        ctx = e.ctx
+                    break
+        return ctx
+
+
+class HooksPipelines[T](HooksABC[HookPipelineCB[T]]):
+    @classmethod
+    def run(cls: type[Self], ctx: Ctx, key: Any, arg: T) -> tuple[Ctx, T]:
+        """Pipeline arg through key callbacks in context."""
+        cb: HookPipelineCB[T]
+        for cb in cons_to_iterable(cls.get(ctx, key)):
+            try:
+                ctx, arg = cb(ctx, arg)
+            except HooksShortCircuit[T] as e:
+                if e.val is not None and isinstance(e.val, type(arg)):
+                    arg = e.val
+                    if e.ctx is not None:
+                        ctx = e.ctx
+                else:
+                    raise RuntimeError(f"Invalid value: {e.val}") from e
+                break
+        return ctx, arg

@@ -1,0 +1,8 @@
+Context(
+    HooksPipelines(
+        test_PipelineHooks.<locals>.PipelineKey1(
+            'test_PipelineHooks.acc_cb',
+            'test_PipelineHooks.side_cb'
+        )
+    )
+)
