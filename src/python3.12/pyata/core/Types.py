@@ -6,7 +6,7 @@ from __future__ import annotations
 from collections.abc import Hashable
 from contextlib import AbstractContextManager
 from typing import (Any, Callable, ClassVar, Iterable, Iterator, Mapping,
-                    Protocol, Self, TypeGuard)
+                    Protocol, Self, TypeGuard, runtime_checkable)
 
 from immutables import Map, MapMutation
 from rich.repr import Result as rich_repr_Result
@@ -25,7 +25,7 @@ __all__: list[str] = [
     'isCtxClsRichReprable', 'isCtxSelfRichReprable', 'isRichReprable',
 
     # miniKanren Core Types
-    'Stream', 'Goal', 'Constraint', 'Solver',
+    'Stream', 'Goal', 'Connective', 'Constraint', 'Solver',
 
     # Hooking Types
     'HookEventCB', 'HookPipelineCB', 'HookBroadcastCB', 'HookCB',
@@ -164,13 +164,22 @@ class Stream(Protocol):
     def __iter__(self: Self) -> Iterator[Ctx]:
         raise NotImplementedError
 
-
-class Goal(RichReprable, CtxSelfRichReprable, Protocol):
+# TODO: CtxSelfRichReprable
+class Goal(RichReprable, Protocol):
     def __call__(self: Self, ctx: Ctx) -> Stream:
         raise NotImplementedError
 
 
+class Connective(Goal, Protocol):
+    def __init__(self: Self, goal: Goal, *g_or_c: Goal | Constraint) -> None:
+        raise NotImplementedError
+
+
+@runtime_checkable
 class Constraint(CtxSelfRichReprable, Protocol):
+    def constrain(self: Self, ctx: Ctx) -> Ctx:
+        raise NotImplementedError
+    
     def __call__(self: Self, ctx: Ctx) -> Ctx:
         raise NotImplementedError
 

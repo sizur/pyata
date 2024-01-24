@@ -173,7 +173,10 @@ def test_BroadcastHooks():
 
 
 expected = """Ctx(
-    Constraints(x={Neq(False, x=1, y=1)}, y={Neq(False, x=1, y=1)}),
+    Constraints(
+        x={Neq(Violation(), x=1, y=1)},
+        y={Neq(Violation(), x=1, y=1)}
+    ),
     Substitutions(x=1, y=1)
 )"""
 def test_Neq():

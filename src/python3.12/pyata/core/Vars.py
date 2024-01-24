@@ -234,14 +234,17 @@ class Vars:
         return ctx, tuple(new_vars)
 
     @classmethod
-    def walk_vars(
+    def walk_and_type_vars(
         cls: type[Self],
         ctx: Ctx,
         vars: Iterable[Var]
     ) -> tuple[Ctx, tuple[Var, ...]]:
         ret: list[Any] = []
         for var in vars:
+            typ = VarTypes.get(ctx, var)
             ctx, var = Substitutions.walk(ctx, var)
+            if typ is not None and not isinstance(var, Var):
+                var = typ(var)
             ret.append(var)
         return ctx, tuple(ret)
         

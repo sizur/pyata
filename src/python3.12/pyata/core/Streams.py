@@ -7,7 +7,7 @@ from typing import Iterator, Self
 # import immutables     as IM
 import more_itertools as MI
 
-from .Types import Ctx, Stream, Goal
+from .Types import Ctx, Goal, Stream
 
 
 __all__: list[str] = [
@@ -28,6 +28,3 @@ class StreamABC(ABC, Stream):
     def __iter__(self: Self) -> Iterator[Ctx]:
         ...
 
-
-# TODO: Experiment and test perf impact of iter protocol.
-class miniKanren(StreamABC): ...

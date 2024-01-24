@@ -85,7 +85,11 @@ class Constraints(FacetABC[Var, Set[Constraint]], FacetRichReprMixin[Var]):
         return Substitutions.hook_sub(ctx, cls.sub_hook)
 
 
-class ConstraintVarsABC(ABC, Constraint):
+class ConstraintABC(ABC, Constraint): pass
+
+class Violation(Exception): pass
+
+class ConstraintVarsABC(ConstraintABC, ABC):
     vars: tuple[Var, ...]
     RichReprDecor: type[RichReprable]
     
@@ -111,7 +115,7 @@ class ConstraintVarsABC(ABC, Constraint):
             def __rich_repr__(self: Self) -> RR.Result:
                 ctx, ego = self.ctx, self.ego
                 if ego(ctx) is Unification.Failed:
-                    yield False
+                    yield Violation()
                 for v in ego.vars:
                     ctx, w = Substitutions.walk(ctx, v)
                     if w == v:
