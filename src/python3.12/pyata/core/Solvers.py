@@ -45,12 +45,16 @@ class SolverABC(ABC):
     def instrument(self: Self, cb: Callable[[Ctx], Ctx]) -> Self:
         self.ctx = cb(self.ctx)
         return self
+    
+    def prep_ctx(self: Self) -> None:
+        self.ctx = Constraints.install(self.ctx)
 
 
 class SolverGiven(SolverABC):
     def __init__(self: Self, ctx: Ctx, vars: tuple[Var, ...]) -> None:
         self.vars = vars
-        self.ctx = Constraints.install(ctx)
+        self.ctx  = ctx
+        self.prep_ctx()
     
     def __call__(self: Self, goal: Goal) -> SolverRunner:
         return SolverRunner(self.ctx, self.vars, goal)
@@ -67,7 +71,7 @@ class SolverLauncher(SolverABC):
     ) -> None:
         ctx = ctx if ctx else NoCtx
         ctx, self.vars = Vars.fresh(ctx, typ, num, **kwargs)
-        self.ctx = Constraints.install(ctx)
+        self.prep_ctx()
     
     def __call__(self: Self, goal: Goal) -> SolverRunner:
         return SolverRunner(self.ctx, self.vars, goal)

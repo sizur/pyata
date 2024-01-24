@@ -35,27 +35,26 @@ __all__: list[str] = [
 # Numpy Structured Records (dtype) for per-second summaries of observations.
 # 64 bytes per second per sensor for summaries timeseries.
 int_dtype: Final[NP.dtype[Any]] = NP.dtype([
-    ( 'time', NP.datetime64 ),  # timestamp of the second collected
-    ( 'nobs', NP.int64      ),  # number of observations in the second
-    ( 'min' , NP.int64      ),  # minimum
-    ( 'max' , NP.int64      ),  # maximum
-    ( 'mean', NP.float64    ),  # mean
-    ( 'var' , NP.float64    ),  # variance
-    ( 'skew', NP.float64    ),  # skewness
-    ( 'kurt', NP.float64    )   # kurtosis
+    ( 'time', 'datetime64[ns]' ),  # timestamp of the second collected
+    ( 'nobs', 'int64'      ),  # number of observations in the second
+    ( 'min' , 'int64'      ),  # minimum
+    ( 'max' , 'int64'      ),  # maximum
+    ( 'mean', 'float64'    ),  # mean
+    ( 'var' , 'float64'    ),  # variance
+    ( 'skew', 'float64'    ),  # skewness
+    ( 'kurt', 'float64'    )   # kurtosis
 ])
 
 float_dtype: Final[NP.dtype[Any]] = NP.dtype([
-    ( 'time', NP.datetime64 ),
-    ( 'nobs', NP.int64      ),
-    ( 'min' , NP.float64    ),
-    ( 'max' , NP.float64    ),
-    ( 'mean', NP.float64    ),
-    ( 'var' , NP.float64    ),
-    ( 'skew', NP.float64    ),
-    ( 'kurt', NP.float64    )
+    ( 'time', 'datetime64[ns]' ),
+    ( 'nobs', 'int64'      ),
+    ( 'min' , 'float64'    ),
+    ( 'max' , 'float64'    ),
+    ( 'mean', 'float64'    ),
+    ( 'var' , 'float64'    ),
+    ( 'skew', 'float64'    ),
+    ( 'kurt', 'float64'    )
 ])
-
 
 nan: NP.float64 = NP.float64(NP.nan)
 
@@ -245,12 +244,14 @@ class Metrics:
         obs_dtype: Any
         per_sec_stats_rec_dtype: NP.dtype[Any]
         _metrics: Metrics
-        
+
         def __init__(
             self: Self,
             ini: N,
             key: Any | None = None,
-            metrics: Metrics | None = None
+            metrics: Metrics | None = None,
+            *,
+            skip_stats_timeseries: bool = False
         ) -> None:
             typ = type(ini)
             if typ is int:
@@ -264,9 +265,10 @@ class Metrics:
             self.ini = self.obs_to_dtype(ini)
             self.key = key if key else self
             self._metrics = metrics if metrics else Metrics.Singleton()
-            self._metrics._hook_per_sec(self._per_sec_hook)
             self._metrics.ctx = MetricsRegistry.register(
                 self._metrics.ctx, self.key, self)
+            if skip_stats_timeseries == False:
+                self._metrics._hook_per_sec(self._per_sec_hook)
 
         def obs_to_dtype(self: Self, obs: N) -> NP.dtype[Any]:
             return self.obs_dtype(obs)
@@ -371,9 +373,12 @@ class Metrics:
             self: Self,
             ini: N,
             key: Any | None = None,
-            metrics: 'Metrics | None' = None
+            metrics: 'Metrics | None' = None,
+            *,
+            skip_stats_timeseries: bool = False
         ) -> None:
-            super().__init__(ini, key, metrics)
+            super().__init__(ini, key, metrics,
+                skip_stats_timeseries=skip_stats_timeseries)
             self._last = ini
         
         def __call__(self: Self, val: N) -> N:
@@ -388,9 +393,12 @@ class Metrics:
             self: Self,
             ini: N,
             key: Any | None = None,
-            metrics: 'Metrics | None' = None
+            metrics: 'Metrics | None' = None,
+            *,
+            skip_stats_timeseries: bool = False
         ) -> None:
-            super().__init__(ini, key, metrics)
+            super().__init__(ini, key, metrics,
+                skip_stats_timeseries=skip_stats_timeseries)
             if NP.isnan(ini):
                 raise ValueError(f"Invalid value: {ini}")
             self._acc = ini
@@ -414,9 +422,12 @@ class Metrics:
             self: Self,
             ini: int = 0,
             key: Any | None = None,
-            metrics: 'Metrics | None' = None
+            metrics: 'Metrics | None' = None,
+            *,
+            skip_stats_timeseries: bool = False
         ) -> None:
-            super().__init__(ini, key, metrics)
+            super().__init__(ini, key, metrics,
+                skip_stats_timeseries=skip_stats_timeseries)
             self._total = ini
             self._last  = ini
             self._running = False

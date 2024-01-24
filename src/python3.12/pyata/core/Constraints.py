@@ -45,7 +45,7 @@ class Constraints(FacetABC[Var, Set[Constraint]], FacetRichReprMixin[Var]):
         return HooksEvents.hook(ctx, cls.hook_propagate, cb)
 
     @classmethod
-    def sub_hook(
+    def substitution_cb(
         cls: type[Self],
         ctx: Ctx,
         data: tuple[Var, Any]
@@ -68,6 +68,24 @@ class Constraints(FacetABC[Var, Set[Constraint]], FacetRichReprMixin[Var]):
         return ctx, (var, val)
 
     @classmethod
+    def walk_condense_cb(
+        cls: type[Self],
+        ctx: Ctx,
+        data: tuple[Any, set[Var]]
+    ) -> tuple[Ctx, tuple[Any, set[Var]]]:
+        val, seen = data
+        if isinstance(val, Var):
+            constraints: Set[Constraint] = Set()
+            for var in seen:
+                ctx, cs = Constraints.propagate(ctx, var, val)
+                constraints = constraints.union(cs)
+            for constraint in constraints:
+                ctx = constraint(ctx)
+                if ctx is Unification.Failed:
+                    return ctx, data
+        return ctx, data
+
+    @classmethod
     def hook_constraint_unsatisfied(
         cls: type[Self],
         ctx: Ctx,
@@ -82,7 +100,9 @@ class Constraints(FacetABC[Var, Set[Constraint]], FacetRichReprMixin[Var]):
     
     @classmethod
     def install(cls: type[Self], ctx: Ctx) -> Ctx:
-        return Substitutions.hook_sub(ctx, cls.sub_hook)
+        ctx = Substitutions.hook_substitution(ctx, cls.substitution_cb)
+       # ctx = Substitutions.hook_walk_condense(ctx, cls.walk_condense_cb)
+        return ctx
 
 
 class ConstraintABC(ABC, Constraint): pass

@@ -321,9 +321,9 @@ class HooksABC[H: HookCB[Any]](
         return vals
 
 
-class HooksShortCircuit[T](Exception):
+class HooksShortCircuit(Exception):
     """Exception to short-circuit hooks."""
-    def __init__(self: Self, ctx: Ctx | None = None, val: T | None = None
+    def __init__(self: Self, ctx: Ctx | None = None, val: Any | None = None
                  ) -> None:
         self.ctx: Ctx | None = ctx
         self.val: T   | None = val
@@ -336,7 +336,7 @@ class HooksEvents[T](HooksABC[HookEventCB[T]]):
         for cb in cons_to_iterable(cls.get(ctx, key)):
             try:
                 ctx = cb(ctx, arg)
-            except HooksShortCircuit[T] as e:
+            except HooksShortCircuit as e:
                 if e.ctx is not None:
                     ctx = e.ctx
                 break
@@ -352,7 +352,7 @@ class HooksBroadcasts[T](HooksABC[HookBroadcastCB[T]]):
             for bcb in cons_to_iterable(cls.get(ctx, k)):
                 try:
                     ctx = bcb(ctx, key, arg)
-                except HooksShortCircuit[T] as e:
+                except HooksShortCircuit as e:
                     if e.ctx is not None:
                         ctx = e.ctx
                     break
@@ -367,7 +367,7 @@ class HooksPipelines[T](HooksABC[HookPipelineCB[T]]):
         for cb in cons_to_iterable(cls.get(ctx, key)):
             try:
                 ctx, arg = cb(ctx, arg)
-            except HooksShortCircuit[T] as e:
+            except HooksShortCircuit as e:
                 if e.val is not None and isinstance(e.val, type(arg)):
                     arg = e.val
                     if e.ctx is not None:

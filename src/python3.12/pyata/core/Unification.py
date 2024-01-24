@@ -37,7 +37,7 @@ class Unification:
     
     @classmethod
     def hook_unify(cls: type[Self], ctx: Ctx,
-        cb: HookPipelineCB[tuple[Ctx, Any, Any]]
+        cb: HookPipelineCB[tuple[Any, Any]]
     ) -> Ctx:
         return HooksPipelines.hook(ctx, cls.hook_unify, cb)
 

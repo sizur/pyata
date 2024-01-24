@@ -140,7 +140,7 @@ class Substitutions(FacetABC[Var, Any], FacetRichReprMixin[Var]):
     def sub(cls: type[Self], ctx: Ctx, var: Var, val: Any) -> Ctx:
         ctx = cls.set(ctx, var, val)
         # Constraints are checked after substitution, and may fail unification.
-        ctx, _ = HooksPipelines.run(ctx, cls.hook_sub, (var, val))
+        ctx, _ = HooksPipelines.run(ctx, cls.hook_substitution, (var, val))
         return ctx
 
     @classmethod
@@ -175,17 +175,25 @@ class Substitutions(FacetABC[Var, Any], FacetRichReprMixin[Var]):
     ) -> Ctx:
         ctx = cls.update(ctx, {var: val for var in tracked})
         # Giving more constraint propagation opportunities.
-        ctx, _ = HooksPipelines.run(ctx, cls._walk_condense, (val, tracked))
+        ctx, _ = HooksPipelines.run(ctx, cls.hook_walk_condense, (val, tracked))
         return ctx
     
     @classmethod
-    def hook_sub(
+    def hook_walk_condense(
+        cls: type[Self],
+        ctx: Ctx,
+        cb: HookPipelineCB[tuple[Any, set[Var]]]
+    ) -> Ctx:
+        return HooksPipelines.hook(ctx, cls.hook_walk_condense, cb)
+    
+    @classmethod
+    def hook_substitution(
         cls: type[Self],
         ctx: Ctx,
         cb: HookPipelineCB[tuple[Var, Any]]
     ) -> Ctx:
         """Hook for substitution events for constraint propagation."""
-        return HooksPipelines.hook(ctx, cls.hook_sub, cb)
+        return HooksPipelines.hook(ctx, cls.hook_substitution, cb)
 
     @classmethod
     def hook_walk_condensible(
