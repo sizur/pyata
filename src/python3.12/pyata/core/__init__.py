@@ -28,7 +28,7 @@ __all__: list[str] = [
     
     'Constraints', 'ConstraintVarsABC', 'Neq', 'Distinct',
     
-    'SolverABC', 'SolverGiven', 'SolverFresh', 'SolverRunner'
+    'SolverABC', 'Solver'
 ]
 
 from .Types       import ( Ctx, NoCtx, Facet, FacetBindable, BoundFacet    #
@@ -39,7 +39,7 @@ from .Types       import ( Ctx, NoCtx, Facet, FacetBindable, BoundFacet    #
                          , isBroadcastKey, CtxClsRichReprable              #
                          , CtxSelfRichReprable, isCtxClsRichReprable       #
                          , isCtxSelfRichReprable, isRichReprable           #
-                         , Connective, Solver                              )
+                         , Connective,                               )
 from .Facets      import ( FacetABC, FacetRichReprMixin, CtxRichRepr       #
                          , HooksPipelines, HooksEvents, HooksBroadcasts    #
                          , HooksShortCircuit                               )
@@ -50,4 +50,4 @@ from .Unification import   Unification
 from .Goals       import   Succeed, Fail, Eq, Goal, GoalABC, And, Or
 from .Streams     import   mbind, mconcat
 from .Constraints import   Constraints, ConstraintVarsABC, Neq, Distinct
-from .Solvers     import ( SolverABC, SolverGiven, SolverFresh, SolverRunner)
+from .Solvers     import ( SolverABC, Solver)

@@ -25,7 +25,7 @@ __all__: list[str] = [
     'isCtxClsRichReprable', 'isCtxSelfRichReprable', 'isRichReprable',
 
     # miniKanren Core Types
-    'Stream', 'Goal', 'Connective', 'Constraint', 'Solver',
+    'Stream', 'Goal', 'Connective', 'Constraint',
 
     # Hooking Types
     'HookEventCB', 'HookPipelineCB', 'HookBroadcastCB', 'HookCB',
@@ -164,8 +164,8 @@ class Stream(Protocol):
     def __iter__(self: Self) -> Iterator[Ctx]:
         raise NotImplementedError
 
-# TODO: CtxSelfRichReprable
-class Goal(RichReprable, Protocol):
+# TODO: RichReprable, CtxSelfRichReprable
+class Goal(Protocol):
     def __call__(self: Self, ctx: Ctx) -> Stream:
         raise NotImplementedError
 
@@ -181,11 +181,6 @@ class Constraint(CtxSelfRichReprable, Protocol):
         raise NotImplementedError
     
     def __call__(self: Self, ctx: Ctx) -> Ctx:
-        raise NotImplementedError
-
-
-class Solver[*T](Protocol):
-    def __call__(self: Self, ctxt: Ctx | None = None) -> Iterable[tuple[*T]]:
         raise NotImplementedError
 
 

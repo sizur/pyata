@@ -12,7 +12,7 @@ import rich.traceback as RT
 import typer          as TR
 
 from pyata.core import (
-    Ctx, NoCtx, SolverGiven, Eq, And, Or, Distinct, Vars
+    Ctx, NoCtx, Solver, Eq, And, Or, Distinct, Vars
 )
 
 RT.install()
@@ -30,7 +30,7 @@ def main(n: int = 8) -> None:
     goal = And(*(Or(*(Eq(v, i) for i in range(n))) for v in vars),
                 Distinct(*vars))
     
-    solver = SolverGiven(ctx, vars)(goal)
+    solver = Solver(ctx, vars, goal)
     
     n_solutions = 0
     latest_solution = None

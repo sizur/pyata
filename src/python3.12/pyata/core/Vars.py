@@ -246,7 +246,7 @@ class Vars:
         cls: type[Self],
         ctx: Ctx,
         vars: Iterable[Var]
-    ) -> tuple[Ctx, tuple[Var, ...]]:
+    ) -> tuple[Ctx, tuple[Any, ...]]:
         ret: list[Any] = []
         for var in vars:
             typ = VarTypes.get(ctx, var)

@@ -23,6 +23,7 @@ def mbind(stream: Stream, goal: Goal) -> Stream:
 mconcat = MI.interleave_longest
 
 
+
 class StreamABC(ABC, Stream):
     @abstractmethod
     def __iter__(self: Self) -> Iterator[Ctx]:

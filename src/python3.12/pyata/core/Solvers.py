@@ -15,7 +15,7 @@ from .Vars   import Var, Vars, SymAssumps, Substitutions
 
 
 __all__: list[str] = [
-    'SolverABC', 'SolverGiven', 'SolverFresh', 'SolverRunner'
+    'SolverABC', 'Solver'
 ]
 
 SUBS_COUNT: Final[str] = 'subs_count'
@@ -48,6 +48,7 @@ class SolverABC(ABC):
                     ) -> tuple[Ctx, tuple[Var, Any]]:
             total = subs_counter(1)
             ctx = SolverCtxState.set(ctx, SUBS_COUNT, total)
+            self.ctx = ctx
             return ctx, data
         self.ctx = Substitutions.hook_substitution(
             self.ctx, subs_cb)
@@ -59,34 +60,9 @@ class SolverABC(ABC):
             return ctx
         Metrics.Singleton().hook_ticks(ctx_switched_cb)
 
-class SolverGiven(SolverABC):
-    def __init__(self: Self, ctx: Ctx, vars: tuple[Var, ...]) -> None:
-        self.vars = vars
-        self.ctx  = ctx
-        self.prep_ctx()
-    
-    def __call__(self: Self, goal: Goal) -> SolverRunner:
-        return SolverRunner(self.ctx, self.vars, goal)
 
-
-class SolverFresh(SolverABC):
-    
-    def __init__(self: Self,
-        typ: type | None = None,
-        num: int  | None = None,
-        ctx: Ctx  | None = None,
-        /,
-        **kwargs: SymAssumps
-    ) -> None:
-        ctx = ctx if ctx else NoCtx
-        ctx, self.vars = Vars.fresh(ctx, typ, num, **kwargs)
-        self.prep_ctx()
-    
-    def __call__(self: Self, goal: Goal) -> SolverRunner:
-        return SolverRunner(self.ctx, self.vars, goal)
-
-
-class SolverRunner(SolverABC, SolverRichReprCtxMixin):
+class Solver(SolverABC, SolverRichReprCtxMixin):
+    last_solution_ctx: Ctx | None = None
     stream_iter: Iterator[Ctx]
     goal: Goal
     
@@ -100,10 +76,24 @@ class SolverRunner(SolverABC, SolverRichReprCtxMixin):
         self.goal = goal
         self.stream_iter = iter(goal(ctx))
     
+    @staticmethod
+    def Fresh(
+        goal: Goal,
+        typ: type | None = None,
+        num: int  | None = None,
+        ctx: Ctx  | None = None,
+        /,
+        **kwargs: SymAssumps
+    ) -> Solver:
+        ctx = ctx if ctx else NoCtx
+        ctx, vars = Vars.fresh(ctx, typ, num, **kwargs)
+        return Solver(ctx, vars, goal)
+    
     def __iter__(self: Self) -> Self:
         return self
 
     def __next__(self: Self) -> tuple[Any, ...]:
+        self.last_solution_ctx = self.ctx
         self.ctx = next(self.stream_iter)
         self.ctx, vars = Vars.walk_and_classify_vars(
             self.ctx, self.vars)
