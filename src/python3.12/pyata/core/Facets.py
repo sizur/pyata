@@ -326,7 +326,7 @@ class HooksShortCircuit(Exception):
     def __init__(self: Self, ctx: Ctx | None = None, val: Any | None = None
                  ) -> None:
         self.ctx: Ctx | None = ctx
-        self.val: T   | None = val
+        self.val: Any | None = val
 
 
 class HooksEvents[T](HooksABC[HookEventCB[T]]):

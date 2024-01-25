@@ -242,7 +242,7 @@ class Vars:
         return ctx, tuple(new_vars)
 
     @classmethod
-    def walk_and_type_vars(
+    def walk_and_classify_vars(
         cls: type[Self],
         ctx: Ctx,
         vars: Iterable[Var]

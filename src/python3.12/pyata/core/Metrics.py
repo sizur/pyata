@@ -244,6 +244,7 @@ class Metrics:
         obs_dtype: Any
         per_sec_stats_rec_dtype: NP.dtype[Any]
         _metrics: Metrics
+        skip_stats_timeseries: bool
 
         def __init__(
             self: Self,
@@ -267,7 +268,9 @@ class Metrics:
             self._metrics = metrics if metrics else Metrics.Singleton()
             self._metrics.ctx = MetricsRegistry.register(
                 self._metrics.ctx, self.key, self)
-            if skip_stats_timeseries == False:
+            
+            self.skip_stats_timeseries = skip_stats_timeseries
+            if not skip_stats_timeseries:
                 self._metrics._hook_per_sec(self._per_sec_hook)
 
         def obs_to_dtype(self: Self, obs: N) -> NP.dtype[Any]:
@@ -296,8 +299,9 @@ class Metrics:
             
             def __call__(self: Self, val: N) -> N:
                 self._metrics._perf_ns()
-                self._metrics.ctx = MetricsObsBuf.observation(
-                    self._metrics.ctx, self.key, val)
+                if not self.skip_stats_timeseries:
+                    self._metrics.ctx = MetricsObsBuf.observation(
+                        self._metrics.ctx, self.key, val)
                 return val
         
         #           ╭────────────────────────────────────────────────────────╮
