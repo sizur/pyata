@@ -68,14 +68,14 @@ ctx, vars = Vars.fresh(ctx, NP.uint8, 100)
 ) = vars
 
 CROSSWORD: list[list[Var | Literal[0]]] = [
-    [  0, _01,   0,   0,   0,   0,   0, _07 ],
-    [_10, _11, _12, _13, _14, _15, _16, _17 ],
-    [  0, _21,   0, _23,   0, _25,   0, _27 ],
-    [  0, _31, _32, _33, _34, _35, _36, _37 ],
-    [  0, _41,   0, _43,   0, _45,   0, _47 ],
-    [  0, _51, _52, _53, _54, _55, _56, _57 ],
-    [  0, _61,   0, _63,   0, _65,   0,   0 ],
-    [_70, _71, _72, _73, _74, _75, _76, _77 ],
+    [  0, _01,   0,   0,   0,   0,   0, _07,   0,   0,   0,   0 ],
+    [_10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _89, _99 ],
+    [  0, _21,   0, _23,   0, _25,   0, _27,   0, _82,   0,   0 ],
+    [  0, _31, _32, _33, _34, _35, _36, _37, _38, _39, _88, _98 ],
+    [  0, _41,   0, _43,   0, _45,   0, _47, _80,   0,   0,   0 ],
+    [  0, _51, _52, _53, _54, _55, _56, _57, _58, _59, _87,   0 ],
+    [  0, _61,   0, _63,   0, _65,   0,   0, _81,   0,   0,   0 ],
+    [_70, _71, _72, _73, _74, _75, _76, _77, _78,   0,   0,   0 ],
 ]
 
 def contig_grps(lst: list[Var | Literal[0]]) -> list[list[Var]]:
@@ -98,13 +98,13 @@ def main() -> None:
                  transient=False
     ) as live:
         
-        n_solution = 0
+        n_solution: int = 0
         
         # Solve
         for (solution,) in solver:
             n_solution += 1
             overtab = RT.Table(box=RX.SIMPLE_HEAD)
-            overtab.add_column(f'Solution {n_solution}\n'
+            overtab.add_column(f'Solution {HI.intcomma(n_solution)}\n'
                                f'Duplicate solutions: {n_solution - len(solver.seen)}',
                                style='green')
             overtab.add_column()

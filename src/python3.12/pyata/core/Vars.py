@@ -231,7 +231,7 @@ class Vars:
         num = len(VarTypes.get_whole(ctx))
         new_vars: dict[Var, type | None] = {}
         for i, t in enumerate(cast(tuple[type[Any], ...], typ), 1 + num):
-            new_vars[Var(f"_{i}", **TypeAssumps.get(ctx, t), **kwargs)] = t
+            new_vars[Var(f"_{i-1}", **TypeAssumps.get(ctx, t), **kwargs)] = t
         ctx = VarTypes.update(ctx, new_vars)
         # TODO: Decide if it should be a broadcast or a pipeline hook.
         #       Keeping it a broadcast until we have a use case for pipeline.

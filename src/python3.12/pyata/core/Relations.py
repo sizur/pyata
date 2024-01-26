@@ -2,7 +2,6 @@
 # -*- coding: utf-8; mode: python -*-
 
 from __future__ import annotations
-from collections import defaultdict
 from typing import Any, Self, no_type_check
 
 import numpy as NP
@@ -35,14 +34,15 @@ class NDArrayRel[T: NP.dtype[Any]](Relation):
             mask = NP.ones(len(self.arr), dtype=bool)
             for i, val in ground:
                 mask &= (self.arr[:, i] == val)
-            filtered_arr = NP.random.permutation(self.arr[mask])
-            for row in filtered_arr:
+            # filtered_arr = NP.random.permutation(self.arr[mask])
+            for row in self.arr[mask]:
                 ctx2 = ctx
                 for i, var in free:
                     ctx2 = Unification.unify(ctx2, var, row[i])
                     if ctx2 is Unification.Failed:
                         break
-                yield ctx2
+                else:
+                    yield ctx2
         
         def __len__(self: Self) -> int:
             return len(self.arr)
