@@ -3,9 +3,9 @@
 
 from typing import Any, Iterator, Self
 
-from  .Types      import Ctx, Facet
+from  .Types      import Ctx, Facet, Var
 from  .Facets     import HooksPipelines, HookPipelineCB
-from  .Vars       import Var, __, Substitutions
+from  .Vars       import __, Substitutions
 from ..immutables import Map
 
 

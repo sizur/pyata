@@ -10,11 +10,12 @@ from typing import (Any, Callable, ClassVar, Iterable, Iterator, Mapping,
 
 from immutables import Map, MapMutation
 from rich.repr import Result as rich_repr_Result
+import sympy          as SY
 
 __all__: list[str] = [
 
     # Core Types
-    'Ctx', 'NoCtx', 'Facet',
+    'Ctx', 'NoCtx', 'Facet', 'Var',
 
     # Facet Convenience Types (ContextManager)
     'FacetBindable', 'BoundFacet',
@@ -25,7 +26,8 @@ __all__: list[str] = [
     'isCtxClsRichReprable', 'isCtxSelfRichReprable', 'isRichReprable',
 
     # miniKanren Core Types
-    'Stream', 'Goal', 'Connective', 'Constraint',
+    'Stream', 'Goal', 'Connective', 'Constraint', 'Relation',
+    'GoalSized', 'GoalVared', 'GoalSizedVared',
 
     # Hooking Types
     'HookEventCB', 'HookPipelineCB', 'HookBroadcastCB', 'HookCB',
@@ -170,6 +172,18 @@ class Goal(Protocol):
         raise NotImplementedError
 
 
+class GoalSized(Goal, Protocol):
+    def __len__(self: Self) -> int:
+        raise NotImplementedError
+
+
+class GoalVared(Goal, Protocol):
+    vars: tuple[Var, ...]
+
+
+class GoalSizedVared(GoalSized, GoalVared, Protocol): pass
+
+
 class Connective(Goal, Protocol):
     def __init__(self: Self, goal: Goal, *g_or_c: Goal | Constraint) -> None:
         raise NotImplementedError
@@ -181,6 +195,11 @@ class Constraint(CtxSelfRichReprable, Protocol):
         raise NotImplementedError
     
     def __call__(self: Self, ctx: Ctx) -> Ctx:
+        raise NotImplementedError
+
+
+class Relation(Protocol):
+    def __call__(self: Self, *vars: Any) -> Goal:
         raise NotImplementedError
 
 
@@ -208,3 +227,6 @@ def isBroadcastKey(key: Any) -> TypeGuard[BroadcastKey]:
 class HookBroadcastCB[T](Protocol):
     def __call__(self: Self, ctx: Ctx, key: BroadcastKey, data: T) -> Ctx:
         raise NotImplementedError
+
+
+Var = SY.Symbol

@@ -9,9 +9,8 @@ from typing import (
 import immutables     as IM
 import rich.repr      as RR
 import rich.pretty    as RY
-import sympy          as SY
 
-from .Types  import ( Ctx, RichReprable                           #
+from .Types  import ( Ctx, RichReprable, Var                      #
                     , isCtxSelfRichReprable, isCtxClsRichReprable )
 from .Facets import ( FacetABC, FacetRichReprMixin, HooksEvents   #
                     , HooksPipelines, HookEventCB, HookPipelineCB )
@@ -54,8 +53,6 @@ class SymAssumps(TypedDict, total=False):
     transcendental       : bool
     zero                 : bool
 
-
-Var = SY.Symbol
 
 __: Final[Var] = Var("__")
 

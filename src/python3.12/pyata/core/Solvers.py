@@ -10,8 +10,8 @@ import rich.repr as RR
 from .Constraints import Constraints
 from .Facets import FacetABC, FacetRichReprMixin, CtxRichRepr
 from .Metrics import Metrics
-from .Types  import Ctx, NoCtx, Goal, HookEventCB, RichReprable
-from .Vars   import Var, Vars, SymAssumps, Substitutions
+from .Types  import Ctx, NoCtx, Var, Goal, HookEventCB, RichReprable
+from .Vars   import Vars, SymAssumps, Substitutions
 
 
 __all__: list[str] = [
@@ -75,6 +75,7 @@ class Solver(SolverABC, SolverRichReprCtxMixin):
         self.vars = vars
         self.goal = goal
         self.stream_iter = iter(goal(ctx))
+        self.prep_ctx()
     
     @staticmethod
     def Fresh(
@@ -95,10 +96,23 @@ class Solver(SolverABC, SolverRichReprCtxMixin):
     def __next__(self: Self) -> tuple[Any, ...]:
         self.last_solution_ctx = self.ctx
         self.ctx = next(self.stream_iter)
-        self.ctx, vars = Vars.walk_and_classify_vars(
+        self.ctx, sol = self.__solution__()
+        return sol
+    
+    def repr_last_solution(self: Self) -> str:
+        if self.last_solution_ctx is None:
+            return repr(self)
+        tmp = self.ctx
+        self.ctx = self.last_solution_ctx
+        ret = repr(self)
+        self.ctx = tmp
+        return ret
+        
+        
+    def __solution__(self: Self) -> tuple[Ctx, tuple[Any, ...]]:
+        return Vars.walk_and_classify_vars(
             self.ctx, self.vars)
-        return vars
-
+    
     def steps_taken(self: Self) -> int:
         return SolverCtxState.get(self.ctx, SUBS_COUNT)
 

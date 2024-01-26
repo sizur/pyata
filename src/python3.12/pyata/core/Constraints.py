@@ -8,11 +8,11 @@ from typing     import Any, ClassVar, Set, Self
 import rich.repr   as RR
 import rich.pretty as RY
 
-from  .Types       import ( Ctx, Constraint, RichReprable               #
+from  .Types       import ( Ctx, Var, Constraint, RichReprable          #
                           , isCtxClsRichReprable, isCtxSelfRichReprable )
 from  .Facets      import ( FacetABC, FacetRichReprMixin, HooksEvents   #
                           , HookEventCB                                 )
-from  .Vars        import   Var, Substitutions
+from  .Vars        import   Substitutions
 from  .Unification import   Unification
 from ..immutables  import   Set
 

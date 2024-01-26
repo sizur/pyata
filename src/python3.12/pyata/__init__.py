@@ -7,6 +7,10 @@ __all__: list[str] = [
     'BoundFacetRichReprable', 'RichReprable', 'FacetKeyOrd', 'Stream',
     'Goal', 'Constraint', 'Solver', 'HookEventCB', 'HookPipelineCB',
     'HookBroadcastCB', 'HookCB', 'BroadcastKey', 'isBroadcastKey',
+    'Relation', 'Connective', 'SolverABC', 'Solver', 'CtxClsRichReprable',
+    'GoalSized', 'CtxSelfRichReprable', 'isCtxClsRichReprable',
+    'isCtxSelfRichReprable', 'isRichReprable', 'CtxVarRichRepr',
+    'GoalVared', 'Goal', 'GoalSizedVared',
     
     'FacetABC', 'FacetRichReprMixin', 'CtxRichRepr',
     
@@ -19,11 +23,13 @@ __all__: list[str] = [
     
     'Unification',
     
-    'Eq', 'Fail', 'Succeed', 'GoalABC', 'Goal',
+    'Eq', 'Fail', 'Succeed', 'GoalABC', 'And', 'Or',
     
     'mbind', 'mconcat',
     
     'Constraints', 'ConstraintVarsABC', 'Neq', 'Distinct',
+    
+    'NDArrayRel',
     
     'Cel', 'Nnl', 'Map', 'MapMutation', 'Set', 'SetMutation',
     'cons_is_empty', 'cons_is_not_empty', 'cons_from_iterable',

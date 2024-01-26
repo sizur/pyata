@@ -1,8 +1,42 @@
-Context(
-    HooksPipelines(
-        test_PipelineHooks.<locals>.PipelineKey1(
-            'test_PipelineHooks.acc_cb',
-            'test_PipelineHooks.side_cb'
-        )
-    )
-)
+#!/usr/bin/env python3
+
+from typing import Any, Iterable, Self
+
+import numpy as NP
+
+from .Types       import Ctx, Goal, Stream, Constraint
+from .Vars        import Var, Substitutions
+
+
+class Np2Drel[T: NP.dtype[Any]]:
+    cols: int
+    arr: NP.ndarray[tuple[int, int], T]
+    
+    def __init__(self: Self, arr: NP.ndarray[tuple[int, int], T]) -> None:
+        assert len(arr) > 0
+        self.arr = arr
+        self.cols = len(arr[0])
+
+    def __call__(self: Self, *vars: Var) -> Iterable[tuple[tuple[T, Var]]]:
+        assert len(vars) == self.cols
+        def goal(ctx: Ctx) -> Stream:
+            ctx, ground, free = self._discern(ctx, *vars)
+            # for row in self.arr with values in cols indexed by ground[_][0]
+            # matching ground[_][1], yield a tuple of tuples of row[free[_][0]] and free[_][1]
+            ...
+        return goal
+
+    def _discern(self: Self, ctx: Ctx, *vars: Var
+                 ) -> tuple[Ctx,
+                            list[tuple[int, T  ]],
+                            list[tuple[int, Var]]]:
+        ground: list[tuple[int, T  ]] = []
+        free  : list[tuple[int, Var]] = []
+        for i, var in enumerate(vars):
+            ctx, val = Substitutions.walk(ctx, var)
+            tup = (i, val)
+            if isinstance(val, Var);
+                free.append(tup)
+            else:
+                ground.append(tup)
+        return ctx, ground, free
