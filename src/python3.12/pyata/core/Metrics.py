@@ -1,4 +1,5 @@
-
+#!/usr/bin/env python3
+# -*- coding: utf-8; mode: python -*-
 from __future__ import annotations
 from abc import ABC
 from time import perf_counter_ns, time_ns
@@ -406,6 +407,9 @@ class Metrics:
             if NP.isnan(ini):
                 raise ValueError(f"Invalid value: {ini}")
             self._acc = ini
+        
+        def get(self: Self) -> N:
+            return self._acc
         
         def __call__(self: Self, val: N) -> N:
             # We don't want to pay for this check, especually since it

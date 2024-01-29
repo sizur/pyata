@@ -3,7 +3,7 @@
 # https://peps.python.org/pep-0695/
 
 from __future__ import annotations
-from collections.abc import Hashable
+from collections.abc import Hashable, Sized
 from contextlib import AbstractContextManager
 from typing import (Any, Callable, ClassVar, Iterable, Iterator, Mapping,
                     Protocol, Self, TypeGuard, runtime_checkable)
@@ -26,8 +26,9 @@ __all__: list[str] = [
     'isCtxClsRichReprable', 'isCtxSelfRichReprable', 'isRichReprable',
 
     # miniKanren Core Types
-    'Stream', 'Goal', 'Connective', 'Constraint', 'Relation',
-    'GoalSized', 'GoalVared', 'GoalSizedVared',
+    'Stream', 'Goal', 'Connective', 'Constraint', 'Relation', 'Vared',
+    'GoalCtxSizedVared', 'CtxSized', 'RelationSized', 'GoalVared',
+    'GoalCtxSized',
 
     # Hooking Types
     'HookEventCB', 'HookPipelineCB', 'HookBroadcastCB', 'HookCB',
@@ -172,16 +173,25 @@ class Goal(Protocol):
         raise NotImplementedError
 
 
-class GoalSized(Goal, Protocol):
-    def __len__(self: Self) -> int:
-        raise NotImplementedError
-
-
-class GoalVared(Goal, Protocol):
+class Vared(Protocol):
     vars: tuple[Var, ...]
 
 
-class GoalSizedVared(GoalSized, GoalVared, Protocol): pass
+@runtime_checkable
+class CtxSized(Protocol):
+    def __ctx_len__(self: Self, ctx: Ctx) -> int:
+        raise NotImplementedError
+
+@runtime_checkable
+class GoalVared(Goal, Vared, Protocol): pass
+
+@runtime_checkable
+class GoalCtxSized(Goal, CtxSized, Protocol): pass
+
+
+@runtime_checkable
+class GoalCtxSizedVared(Goal, Vared, CtxSized, Protocol):
+    distribution: dict[Var, dict[Any, int]]
 
 
 class Connective(Goal, Protocol):
@@ -198,8 +208,13 @@ class Constraint(CtxSelfRichReprable, Protocol):
         raise NotImplementedError
 
 
-class Relation(Protocol):
-    def __call__(self: Self, *vars: Any) -> Goal:
+class Relation[*T](Protocol):
+    def __call__(self: Self, *args: *T) -> GoalVared:
+        raise NotImplementedError
+
+
+class RelationSized[*T](Relation[*T], Sized, Protocol):
+    def __call__(self: Self, *args: *T) -> GoalCtxSizedVared:
         raise NotImplementedError
 
 

@@ -4,38 +4,47 @@
 from __future__ import annotations
 from collections import defaultdict
 from itertools import groupby, chain
+from math import prod
 from typing import Any, Literal, Self, cast
 
-import humanize       as HI
-import nltk           as NL  # pyright: ignore[reportMissingTypeStubs]
-import numpy          as NP
-import loguru         as LG
-import rich.box       as RX
-import rich.live      as RV
-import rich.logging   as RL
-import rich.panel     as RP
-import rich.pretty    as RY
-import rich.table     as RT
-import rich.traceback as RB
-import typer          as TR
+import click_completion, nltk  # pyright: ignore[reportMissingTypeStubs]
+import humanize, loguru, rich, typer, numpy as np
+import rich.console, rich.columns, rich.box, rich.live, rich.logging, \
+    rich.panel, rich.pretty, rich.progress, rich.table, rich.traceback, \
+        rich.markdown, rich.status
 
 from pyata.core import (
     Ctx, NoCtx, And, Vars, Substitutions, Var,
-    Solver, CtxRichRepr, NDArrayRel, GoalSizedVared
+    Solver, CtxRichRepr, TabRel, GoalCtxSizedVared,
+    VarTypes, RelationSized, BroadcastKey, HooksBroadcasts
 )
 
-RB.install()
-LG.logger.configure(handlers=[dict(
-    level="DEBUG",
-    sink=RL.RichHandler(
-        markup=True,
-        show_path=False,),
-    format="{message}",)])
-INFO = LG.logger.info
-DEBUG = LG.logger.debug
+APP = typer.Typer(name='crossword_specific', pretty_exceptions_enable=False)
 
-def pretty_ctx(ctx: Ctx) -> str:
-    return RY.pretty_repr(CtxRichRepr(ctx))
+click_completion.init()  # type: ignore
+
+STDOUT = rich.console.Console(log_path=False)
+STDERR = rich.console.Console(stderr=True, log_path=False)
+
+loguru.logger.configure(handlers=[dict(
+    level="DEBUG",
+    sink=rich.logging.RichHandler(
+        console=STDERR,
+        markup=True,
+        show_path=False,
+        rich_tracebacks=True,
+        tracebacks_show_locals=True,
+        tracebacks_width=300,
+        locals_max_length=100
+        ),
+    format="{message}",)])
+
+INF = loguru.logger.info
+DBG = loguru.logger.debug
+
+def pp_ctx(ctx: Ctx) -> str:
+    return rich.pretty.pretty_repr(CtxRichRepr(
+        ctx, ignore_facets={VarTypes}))
 
 ##############################################################################
 # Example (Non-General)
@@ -46,14 +55,11 @@ def pretty_ctx(ctx: Ctx) -> str:
 
 # Starting with a fresh context
 ctx: Ctx = NoCtx
-# Can inspect it during debugging.
-INFO(f'Fresh context: {pretty_ctx(ctx)}')
 
 # Let's get some fresh variables to work with.
 # We'll represent words as arrays of uint8s, so these
 # logical variable of type uint8 when ground.
-INFO('Getting fresh variables:')
-ctx, vars = Vars.fresh(ctx, NP.uint8, 100)
+ctx, vars = Vars.fresh(ctx, np.uint8, 100)
 (
     _00,_01, _02, _03, _04, _05, _06, _07, _08, _09,
     _10,_11, _12, _13, _14, _15, _16, _17, _18, _19,
@@ -68,106 +74,162 @@ ctx, vars = Vars.fresh(ctx, NP.uint8, 100)
 ) = vars
 
 CROSSWORD: list[list[Var | Literal[0]]] = [
-    [  0, _01,   0,   0,   0,   0,   0, _07,   0,   0,   0,   0 ],
-    [_10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _89, _99 ],
-    [  0, _21,   0, _23,   0, _25,   0, _27,   0, _82,   0,   0 ],
-    [  0, _31, _32, _33, _34, _35, _36, _37, _38, _39, _88, _98 ],
-    [  0, _41,   0, _43,   0, _45,   0, _47, _80,   0,   0,   0 ],
-    [  0, _51, _52, _53, _54, _55, _56, _57, _58, _59, _87,   0 ],
-    [  0, _61,   0, _63,   0, _65,   0,   0, _81,   0,   0,   0 ],
-    [_70, _71, _72, _73, _74, _75, _76, _77, _78,   0,   0,   0 ],
+    [  0, _01,   0, _03,   0, _05,   0,   0,   0,   0 ],
+    [_10, _11, _12, _13, _14, _15, _16, _17, _18, _19 ],
+    [  0, _21,   0, _23,   0, _25,   0,   0,   0,   0 ],
+    [_30, _31, _32, _33, _34, _35, _36, _37, _38,   0 ],
+    [  0, _41,   0, _43,   0, _45,   0,   0,   0,   0 ],
+    [_50, _51, _52, _53, _54, _55, _56, _57,   0,   0 ],
+    [  0, _61,   0, _63,   0, _65,   0, _67,   0,   0 ],
 ]
+
+# CROSSWORD: list[list[Var | Literal[0]]] = [
+#     [  0, _01,   0, _03,   0,   0,   0,   0,   0,   0 ],
+#     [_10, _11, _12, _13, _14, _15, _16, _17, _18, _19 ],
+#     [  0, _21,   0, _23,   0,   0,   0,   0,   0,   0 ],
+#     [_30, _31, _32, _33, _34, _35, _36, _37, _38,   0 ],
+#     [  0, _41,   0, _43,   0,   0,   0,   0,   0,   0 ],
+#     [_50, _51, _52, _53, _54, _55, _56, _57,   0,   0 ],
+#     [  0, _61,   0, _63,   0,   0,   0,   0,   0,   0 ],
+# ]
 
 def contig_grps(lst: list[Var | Literal[0]]) -> list[list[Var]]:
     return [cast(list[Var], grp) for grp in (
         list(g) for _, g in groupby(lst, lambda x: x != 0))
             if len(grp) > 1 and grp[0] != 0]
 
-WORDS = list(chain(*(
+DIAGONALS: list[list[Var]] = [
+    [_01, _12, _23, _34, _45, _56, _67 ],
+  # [_03, _14, _25, _36],
+  # [_10, _21, _32, _43, _54, _65],
+  # [_30, _41, _52, _63],
+]
+WORDS: list[list[Var]] = list(chain(*(
     [contig_grps(row) for row in CROSSWORD] +
     [contig_grps(col) for col in zip(*CROSSWORD)]
-)))
+))) + DIAGONALS
 
+DIAG_VAR_SET = set(chain(*DIAGONALS))
+
+@APP.command()
 def main() -> None:
-    INFO('Constructing the solver.')
+    rich.traceback.install(show_locals=True, width=None, locals_max_length=20)
+    global ctx
+    
+    def heuristic_cb(ctx: Ctx, key: BroadcastKey,
+                        data: tuple[int, int, goals: Iterable[Goal]]
+    ) -> Ctx:
+        orig, new, goals = data
+        DBG(f'Conjunction heuristic optimized ({
+            humanize.scientific(orig, 2)} -> {humanize.scientific(new, 2)})'
+            ' new order:')
+        DBG(f'{rich.pretty.pretty_repr(goals)}')
+        return ctx
+    ctx = And.hook_heuristic(ctx, heuristic_cb)
+        
     solver = CrosswordSolver(ctx, WORDS)
     
-    INFO('Running the solver.')
-    with RV.Live(RP.Panel.fit(str(solver), title="Crossword"),
-                 auto_refresh=True,
-                 transient=False
+    INF('Running the solver.')
+    with rich.live.Live(
+        rich.panel.Panel.fit(str(solver),
+                            title="Crossword"),
+        auto_refresh=True,
+        transient=False
     ) as live:
         
-        n_solution: int = 0
-        
-        # Solve
-        for (solution,) in solver:
-            n_solution += 1
-            overtab = RT.Table(box=RX.SIMPLE_HEAD)
-            overtab.add_column(f'Solution {HI.intcomma(n_solution)}\n'
-                               f'Duplicate solutions: {n_solution - len(solver.seen)}',
-                               style='green')
-            overtab.add_column()
-            tab = RT.Table(box=RX.SIMPLE_HEAD)
-            tab.add_column('Word', justify='right', style='cyan')
-            tab.add_column('Definition', style='magenta')
-            for word, definition in sorted(solution.items()):
+        n_solution: list[int] = [0]
+        last_solution: list[tuple[str, ...] | None] = [None]
+
+        def defs_table(solution: tuple[str, set[str]]) -> rich.table.Table:
+            word, defs = solution
+            tab = rich.table.Table(box=rich.box.SIMPLE_HEAD,
+                                show_header=False)
+            tab.add_column(justify='right', style='cyan')
+            tab.add_column(max_width=80, no_wrap=True, style='magenta')
+            for definition in defs:
                 tab.add_row(word, definition)
-            overtab.add_row(RP.Panel.fit(str(solver), title="Crossword"),
-                            tab)
-            live.update(overtab)
+            return tab
+
+        def show() -> None:
+            render = [rich.panel.Panel.fit(
+                    f'{solver}',
+                    title=f"Solution {humanize.intcomma(n_solution[0])}")]
+            if n_solution[0]:
+                tab = rich.table.Table(box=rich.box.SIMPLE_HEAD,
+                                        show_header=False)
+                tab.add_column(justify='center', style='cyan')
+                tab.add_column(max_width=80, no_wrap=True, style='magenta',
+                            justify='left')
+                for word in last_solution[0]:
+                    defs = solver.definitions[word]
+                    text: list[str] = []
+                    i = 0
+                    for d in defs:
+                        i += 1
+                        text.append(f'{i}. {d}')
+                    tab.add_row(word, '\n'.join(text))
+                render.append(tab)
+            cols = rich.columns.Columns(render) #, equal=True)
+            live.update(cols, refresh=True)
+        
+        def per_sec_cb(ctx: Ctx, data: tuple[int, float]) -> Ctx:
+            seconds_past, cur_time = data
+            show()
+            return ctx
+        solver.hook_per_sec(per_sec_cb)
+
+        # Solve
+        for solution in solver:
+            n_solution[0] += 1
+            last_solution[0] = solution
+            show()
 
 
 def nltk_word_len_to_arr2d() -> tuple[
-    dict[int, NP.ndarray[tuple[int, int],
-                         NP.dtype[NP.uint8]]],
-         dict[str, str]
+    dict[int, np.ndarray[tuple[int, int],
+                         np.dtype[np.uint8]]],
+         dict[str, set[str]]
 ]:
-    def get_wordset() -> tuple[set[str], dict[str, str]]:
-        WN = NL.corpus.wordnet
-        INFO('Getting a set of nouns using NLTK.')
-        wordset: set[str] = set()
-        definitions: dict[str, str] = {}
-        for synset in WN.all_synsets(pos=WN.NOUN):
+    def get_wordset() -> dict[str, set[str]]:
+        wordnet = nltk.corpus.wordnet
+        INF('Getting WordNet words, using NLTK.')
+        wordset: dict[str, set[str]] = defaultdict(set)
+        for synset in wordnet.all_synsets():
             for w in synset.lemma_names():
-                if ('_' not in w and w.isalpha() and w.isascii()
-                    and w not in wordset):
-                    wordset.add(w)
-                    definitions[w] = synset.definition()
-        return wordset, definitions
+                if w.isalpha() and w.isascii():
+                    w = w.replace('_', '')
+                    w = w.upper()
+                    wordset[w].add(synset.definition())
+        return wordset
 
-    wordset: set[str] = set()
-    definitions: dict[str, str] = {}
+    wordset: dict[str, set[str]]
     try:
-        wordset, definitions = get_wordset()
+        wordset = get_wordset()
     except LookupError:
-        NL.download('wordnet')  # type: ignore
-        wordset, definitions = get_wordset()
-    INFO(f'Got {HI.intcomma(len(wordset))} words.')
+        INF('NLTK corpus WordNet not found. Downloading.')
+        nltk.download('wordnet')  # type: ignore
+        wordset = get_wordset()
+    INF(f'Got {humanize.intcomma(len(wordset))} words.')
 
     wordlist_by_len: dict[int,
-                          list[NP.ndarray[tuple[int],
-                                          NP.dtype[NP.uint8]]]
+                          list[np.ndarray[tuple[int],
+                                          np.dtype[np.uint8]]]
                           ] = defaultdict(list)
     for word in wordset:
         wordlist_by_len[len(word)].append(str_to_arr(word))
-    INFO(f'Words lengths: '
-        f'{dict(sorted((
-            (len(wordlist_by_len[k]), k) for k in wordlist_by_len),
-            reverse=True))}')
-
+    
     arr2d_per_len: dict[int,
-                        NP.ndarray[tuple[int, int],
-                                NP.dtype[NP.uint8]]] = {}
+                        np.ndarray[tuple[int, int],
+                                np.dtype[np.uint8]]] = {}
     for length, arrlist in wordlist_by_len.items():
-        arr2d_per_len[length] = NP.stack(arrlist)
+        arr2d_per_len[length] = np.stack(arrlist)
 
-    return arr2d_per_len, definitions
+    return arr2d_per_len, wordset
 
-def str_to_arr(word: str) -> NP.ndarray[Any, NP.dtype[NP.uint8]]:
-    return NP.frombuffer(word.encode(), dtype=NP.uint8)
+def str_to_arr(word: str) -> np.ndarray[Any, np.dtype[np.uint8]]:
+    return np.frombuffer(word.encode(), dtype=np.uint8)
 
-def arr_to_str(arr: NP.ndarray[Any, NP.dtype[NP.uint8]]) -> str:
+def arr_to_str(arr: np.ndarray[Any, np.dtype[np.uint8]]) -> str:
     return arr.tobytes().decode()
 
 
@@ -179,36 +241,34 @@ class CrosswordSolver(Solver):
     len_to_arr2d, definitions = nltk_word_len_to_arr2d()
     
     words: list[list[Var]]
-    subgoals: list[GoalSizedVared]
+    wordrels: list[RelationSized[Any]]
+    subgoals: list[GoalCtxSizedVared]
+    progress: rich.progress.Progress | None
     
     seen: set[tuple[str, ...]] = set()
     
-    def __init__(self: Self, ctx: Ctx, words: list[list[Var]]) -> None:
-        def word_goal(*vars: Var) -> GoalSizedVared:
-            return NDArrayRel(self.len_to_arr2d[len(vars)])(*vars)
+    def __init__(self: Self, ctx: Ctx,
+                 words: list[list[Var]],
+                 progress: rich.progress.Progress | None = None
+    ) -> None:
+        def word_rel(id: int, *vars: Var) -> TabRel[np.dtype[np.uint8], Any]:
+            return TabRel[np.dtype[np.uint8], Any](
+                self.len_to_arr2d[len(vars)],
+                name=f'word_{id}')
         self.ctx  = ctx
         self.words = words
-        self.subgoals = [word_goal(*word) for word in words] 
-        self.heuristic()
+        self.progress = progress
+        self.wordrels = [word_rel(i, *word) for i, word in enumerate(words)]
+        DBG(f'Word relations: {rich.pretty.pretty_repr(self.wordrels)}')
+        total_size: int = prod(len(rel) for rel in self.wordrels)
+        DBG(f'Naïve search-space size: {humanize.scientific(total_size, 2)}')
+        self.subgoals = [rel(*word) for rel, word in zip(self.wordrels, words)]
         self.goal = And(*self.subgoals)
         self.vars = tuple(set(v for word in words for v in word))
-        self.stream_iter = iter(self.goal(ctx))
+        self.stream_iter = iter(self.goal(self.ctx))
         self.prep_ctx()
     
-    def heuristic(self: Self) -> None:
-        # (higher number of shared vars, lower relation size)
-        shared: dict[GoalSizedVared, int] = defaultdict(int)
-        for goal in self.subgoals:
-            for var in goal.vars:
-                shared[goal] += sum(1 for g in self.subgoals if var in g.vars
-                                    and g is not goal)
-        self.subgoals.sort(key=lambda g: (-shared[g], len(g)))
-        for i, goal in enumerate(self.subgoals):
-            DEBUG(f'Goal {i}: shared vars: {shared[goal]}, '
-                  f'size: {len(goal)} '
-                  f'vars {goal.vars}')
-    
-    def __solution__(self: Self) -> tuple[Ctx, tuple[dict[str, str]]]:
+    def __solution__(self: Self) -> tuple[Ctx, tuple[str, ...]]:
         """Reconstruct a solutions from a solved context."""
         sol: list[str] = []
         for subgoal in self.subgoals:
@@ -221,8 +281,9 @@ class CrosswordSolver(Solver):
                 word.append(val.tobytes().decode())
             if word:
                 sol.append(''.join(word))
-        self.seen.add(tuple(sol))
-        return self.ctx, ({w: self.definitions[w] for w in sol},)
+        ret = tuple(sol)
+        self.seen.add(ret)
+        return self.ctx, ret
     
     def __repr__(self: Self) -> str:
         """Show the solver state."""
@@ -233,15 +294,14 @@ class CrosswordSolver(Solver):
             for cell in row:
                 if isinstance(cell, Var):
                     ctx, val = Substitutions.walk(ctx, cell)
-                    if isinstance(val, Var):
-                        show.append("⎵")
-                    else:
-                        show.append(val.tobytes().decode())
+                    show.append(f"{'⸤' if cell in DIAG_VAR_SET else '['}")
+                    show.append(f'{'_' if isinstance(val, Var) else val.tobytes().decode()}')
+                    show.append(f"{'⸣' if cell in DIAG_VAR_SET else ']'}")
                 else:
-                    show.append(" ")
-            lines.append(" ".join(str(s) for s in show))
+                    show.append("   ")
+            lines.append("".join(str(s) for s in show))
         return "\n".join([f' {line} ' for line in lines])
 
-
-run = TR.run(main)
+if __name__ == '__main__':
+    APP()
 

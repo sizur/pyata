@@ -10,7 +10,7 @@ __all__: list[str] = [
     'Relation', 'Connective', 'SolverABC', 'Solver', 'CtxClsRichReprable',
     'GoalSized', 'CtxSelfRichReprable', 'isCtxClsRichReprable',
     'isCtxSelfRichReprable', 'isRichReprable', 'CtxVarRichRepr',
-    'GoalVared', 'Goal', 'GoalSizedVared',
+    'Vared', 'Goal', 'GoalCtxSizedVared', 'GoalCtxSized', 'GoalVared',
     
     'FacetABC', 'FacetRichReprMixin', 'CtxRichRepr',
     
@@ -29,7 +29,7 @@ __all__: list[str] = [
     
     'Constraints', 'ConstraintVarsABC', 'Neq', 'Distinct',
     
-    'NDArrayRel',
+    'TabRel',
     
     'Cel', 'Nnl', 'Map', 'MapMutation', 'Set', 'SetMutation',
     'cons_is_empty', 'cons_is_not_empty', 'cons_from_iterable',

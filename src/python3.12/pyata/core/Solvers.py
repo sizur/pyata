@@ -42,11 +42,11 @@ class SolverABC(ABC):
         # Maarking each new state (with a new subtitution)
         # with a total substitutions count
         # -- a basic measure of steps taken.
-        subs_counter = Metrics.Counter(
-            0, (self, 'subs_counter'), skip_stats_timeseries=True)
+        self.subs_counter = Metrics.Counter(
+            0, (self, SUBS_COUNT), skip_stats_timeseries=True)
         def subs_cb(ctx: Ctx, data: tuple[Var, Any]
                     ) -> tuple[Ctx, tuple[Var, Any]]:
-            total = subs_counter(1)
+            total = self.subs_counter(1)
             ctx = SolverCtxState.set(ctx, SUBS_COUNT, total)
             self.ctx = ctx
             return ctx, data

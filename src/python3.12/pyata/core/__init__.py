@@ -9,7 +9,8 @@ __all__: list[str] = [
     'HookEventCB', 'HookPipelineCB', 'HookBroadcastCB', 'HookCB',
     'BroadcastKey', 'isBroadcastKey', 'isCtxClsRichReprable',
     'isCtxSelfRichReprable', 'isRichReprable', 'Connective',
-    'Relation', 'GoalSized', 'GoalVared', 'GoalSizedVared',
+    'Vared', 'Relation', 'GoalCtxSizedVared', 'CtxSized',
+    'RelationSized', 'GoalCtxSized', 'GoalVared',
     
     'FacetABC', 'FacetRichReprMixin', 'CtxRichRepr',
     'CtxClsRichReprable', 'CtxSelfRichReprable',
@@ -31,7 +32,7 @@ __all__: list[str] = [
     
     'SolverABC', 'Solver',
     
-    'NDArrayRel',
+    'TabRel',
 ]
 
 from .Types       import ( Ctx, NoCtx, Facet, FacetBindable, BoundFacet    #
@@ -42,8 +43,8 @@ from .Types       import ( Ctx, NoCtx, Facet, FacetBindable, BoundFacet    #
                          , isBroadcastKey, CtxClsRichReprable              #
                          , CtxSelfRichReprable, isCtxClsRichReprable       #
                          , isCtxSelfRichReprable, isRichReprable, Var      #
-                         , Connective, Relation, GoalSized, GoalVared      #
-                         , GoalSizedVared                                  )
+                         , Connective, Relation, Vared, GoalCtxSizedVared  #
+                         , CtxSized, RelationSized, GoalCtxSized, GoalVared)
 from .Facets      import ( FacetABC, FacetRichReprMixin, CtxRichRepr       #
                          , HooksPipelines, HooksEvents, HooksBroadcasts    #
                          , HooksShortCircuit                               )
@@ -55,4 +56,4 @@ from .Goals       import   Succeed, Fail, Eq, Goal, GoalABC, And, Or
 from .Streams     import   mbind, mconcat
 from .Constraints import   Constraints, ConstraintVarsABC, Neq, Distinct
 from .Solvers     import ( SolverABC, Solver)
-from .Relations   import   NDArrayRel
+from .Relations   import   TabRel
