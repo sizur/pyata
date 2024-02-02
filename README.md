@@ -2,6 +2,8 @@
 
 Pyata is a general logic solver (or symbolic rule-based inference engine) in Python.  It is based on its own implementation of miniKanren relational programming EDSL (embedded domain specific language).  Pyata is under heavy development, and its API is still very fluid.  Consider it pre-alpha.
 
+![Front](./front.gif)
+
 ## Features
 
 - The usual miniKanren goodness of:
@@ -31,3 +33,4 @@ Example from [./src/python3.12/pyata/examples/permutations.py](./src/python3.12/
 demonstrating live context observation.
 
 ![Permutations](./permutations.png)
+
