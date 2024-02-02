@@ -341,7 +341,7 @@ class And(ConnectiveABC, MaybeCtxSized):
                     goal.order_direction(g_vars)  # type: ignore
                 except AttributeError:
                     pass
-        if not mtx:
+        if not mtx or all(cell is None for row in mtx for cell in row):
             return ctx, None, mtx, shared_distrib
         to_concat: list[Goal] = []
         to_sort: list[tuple[int, GoalCtxSized]] = []

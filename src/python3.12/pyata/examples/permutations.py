@@ -23,7 +23,7 @@ LG.logger.configure(handlers=[dict(
         show_path=False,),
     format="{message}",)])
 
-def main(n: int = 8) -> None:
+def main(n: int = 9) -> None:
     
     ctx, vars = Vars.fresh(NoCtx, int, n)
     
@@ -44,7 +44,7 @@ def main(n: int = 8) -> None:
             LG.logger.info(f'Solution {n_solutions}: {latest_solution}')
             live.update(
                 RP.Panel.fit(RY.Pretty(dict(
-                    steps_taken     = solver.steps_taken(),
+                    steps_taken     = solver.steps_count,
                     n_solutions     = n_solutions,
                     latest_solution = latest_solution,
                     solver_state    = solver))),
