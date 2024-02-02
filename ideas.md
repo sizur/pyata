@@ -24,6 +24,6 @@ Capture ideas in here as soon as they come to mind.  Categorize/define them late
    This facet will need to contain own state, like [Metrics](src/python/pyata/types/_3_12.py#Facet).
    - ``if Unifications.Failed:`` add to Bloom-filter
    - ``if context :`` add to Map
-
+  - Implement Rich Console Protocol everywhere Rich Repr is used.
 
 ## 

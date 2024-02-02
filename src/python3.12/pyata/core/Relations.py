@@ -5,20 +5,20 @@ from __future__ import annotations
 from abc import ABC
 from collections import defaultdict
 from collections.abc import Sized
-from typing import Any, Iterator, Self
+from typing import Any, Iterable, Iterator, Self
 
 import numpy as np, rich, rich.repr, rich.pretty
 
+from .Facets      import HooksEvents, HookEventCB, HooksBroadcasts, HookBroadcastCB
 from .Goals       import GoalABC
-from .Types       import Ctx, Var, Vared, CtxSized, GoalCtxSizedVared, Stream, \
+from .Types       import Ctx, Var, GoalCtxSizedVared, Stream, \
     Relation
 from .Unification import Unification
 from .Vars        import Substitutions
-from ..immutables import Map
 from ..config     import Settings
 
 __all__: list[str] = [
-    'TabRel'
+    'FactsTable'
 ]
 
 
@@ -43,10 +43,10 @@ class RelationABC[*T](ABC, Relation[*T]):
                     ) from e
 
 
-class TabRel[A: np.dtype[Any], *T](RelationABC[*T], Sized):
+class FactsTable[A: np.dtype[Any], *T](RelationABC[*T], Sized):
     arr: np.ndarray[tuple[int, int], A]
     
-    class RelGoal(GoalABC, CtxSized, Vared):
+    class FactsGoal(GoalABC, GoalCtxSizedVared):
         arr      : np.ndarray[tuple[int, int], A]
         args     : np.ndarray[tuple[int], Any]
         free_ixs : np.ndarray[tuple[int], np.dtype[np.int_]]
@@ -65,17 +65,19 @@ class TabRel[A: np.dtype[Any], *T](RelationABC[*T], Sized):
                                      if isinstance(var, Var)))
             self.bound_ixs = np.array(list(i for i, var in enumerate(args)
                                       if not isinstance(var, Var)))
+            max_val = np.max(self.arr)
             distrib = np.apply_along_axis(
-                lambda x: np.bincount(x), axis=0, arr=self.arr)
+                lambda x: np.pad(np.bincount(x), (0, max_val - np.max(x) + 1)),
+                axis=0, arr=self.arr)
+                # lambda x: np.bincount(x), axis=0, arr=self.arr)
             self.distribution = defaultdict(dict)
             for val in np.where(np.any(0 != distrib, axis=1))[0]:
                 vns: Iterator[tuple[Var, int]]
-                vns = ((v,n) for v,n in zip(self.args, distrib[val],
-                                            strict=True)
-                      if isinstance(v, Var))
+                vns = ((v,n) for v,n in zip(self.args, distrib[val])
+                    if isinstance(v, Var))
                 for var, num in vns:
                     self.distribution[var][val] = num
-            
+
             if DEBUG:
                 for var, vals in self.distribution.items():
                     acc = sum(vals.values())
@@ -118,13 +120,19 @@ class TabRel[A: np.dtype[Any], *T](RelationABC[*T], Sized):
                     num_arr[:, i] = self.direction[var][arr[:, i]]
                 sort_ixs = np.lexsort(num_arr.T[ixs])
                 filtered_arr = arr[sort_ixs]
-            for row in filtered_arr:
+            size = filtered_arr.shape[0]
+            for i, fact in enumerate(filtered_arr):
                 ctx2 = ctx
+                broadcast_data = (self, fact, i, size)
                 for ix in free_idx:
-                    ctx2 = Unification.unify(ctx2, self.args[ix], row[ix])
+                    ctx2 = Unification.unify(ctx2, self.args[ix], fact[ix])
                     if ctx2 is Unification.Failed:
+                        broadcast_key  = (FactsTable.FactsGoal, self.hook_failed)
+                        HooksBroadcasts.run(ctx, broadcast_key, broadcast_data)
                         break
                 else:
+                    broadcast_key  = (FactsTable.FactsGoal, self.hook_succeeded)
+                    HooksBroadcasts.run(ctx, broadcast_key, broadcast_data)
                     yield ctx2
         
         def __len__(self: Self) -> int:
@@ -134,11 +142,24 @@ class TabRel[A: np.dtype[Any], *T](RelationABC[*T], Sized):
             arr, _ = self._filtered_arr(ctx)
             return len(arr)
         
+        def hook_failed(self: Self, ctx: Ctx,
+            cb: HookBroadcastCB[tuple[
+                Self, np.ndarray[tuple[int], A], int, int]]
+        ) -> Ctx:
+            broadcast_key = (FactsTable.FactsGoal, self.hook_failed)
+            return HooksBroadcasts.hook(ctx, broadcast_key, cb)
+        
+        def hook_succeeded(self: Self, ctx: Ctx,
+            cb: HookBroadcastCB[tuple[
+                Self, np.ndarray[tuple[int], A], int, int]]
+        ) -> Ctx:
+            broadcast_key = (FactsTable.FactsGoal, self.hook_succeeded)
+            return HooksBroadcasts.hook(ctx, broadcast_key, cb)
+        
         def __rich_repr__(self: Self) -> rich.repr.Result:
             if self.name:
                 yield self.name
-            yield 'params', len(self.args)
-            yield 'size', len(self.arr)
+            yield 'vars', self.vars
             # yield from self.args
 
     def __init__(self: Self, arr: np.ndarray[tuple[int, int], A],
@@ -149,8 +170,8 @@ class TabRel[A: np.dtype[Any], *T](RelationABC[*T], Sized):
 
     def __call__(self: Self, *args: *T) -> GoalCtxSizedVared:
         if self.name:
-            return self.RelGoal(self.arr, *args, name=self.name)
-        return self.RelGoal(self.arr, *args)
+            return self.FactsGoal(self.arr, *args, name=self.name)
+        return self.FactsGoal(self.arr, *args)
 
     def __len__(self: Self) -> int:
         return self.arr.shape[0]
@@ -160,3 +181,9 @@ class TabRel[A: np.dtype[Any], *T](RelationABC[*T], Sized):
             yield self.name
         yield 'cols', self.arr.shape[1]
         yield 'rows', self.arr.shape[0]
+
+    def get_facts(self: Self) -> Iterable[np.ndarray[tuple[int], A]]:
+        for row in self.arr:
+            # NOTE: We can't reify here as relations don't depend on context,
+            #       goals do.
+            yield row

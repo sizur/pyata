@@ -10,7 +10,8 @@ __all__: list[str] = [
     'BroadcastKey', 'isBroadcastKey', 'isCtxClsRichReprable',
     'isCtxSelfRichReprable', 'isRichReprable', 'Connective',
     'Vared', 'Relation', 'GoalCtxSizedVared', 'CtxSized',
-    'RelationSized', 'GoalCtxSized', 'GoalVared',
+    'RelationSized', 'GoalCtxSized', 'GoalVared', 'MaybeCtxSized',
+    'Reifier',
     
     'FacetABC', 'FacetRichReprMixin', 'CtxRichRepr',
     'CtxClsRichReprable', 'CtxSelfRichReprable',
@@ -19,20 +20,18 @@ __all__: list[str] = [
                           
     'Metrics',
     
-    'Var', 'VarTypes', 'Substitutions', 'Vars', 'TypeAssumps', 'SymAssumps',
-    '__', 'CtxVarRichRepr',
+    'Var', 'VarsReifiers', 'Substitutions', 'Vars', 'ReifiersAssumps', 'SymAssumps',
+    '__', 'CtxVarRichRepr', 'VarDomains', 'DomainABC', 'FiniteDiscreteDomain',
     
     'Unification',
     
     'Eq', 'Fail', 'Succeed', 'GoalABC', 'Goal', 'And', 'Or',
     
-    'mbind', 'mconcat',
-    
-    'Constraints', 'ConstraintVarsABC', 'Neq', 'Distinct',
+    'Constraints', 'ConstraintVarsABC', 'Neq', 'Distinct', 'Notin',
     
     'SolverABC', 'Solver',
     
-    'TabRel',
+    'FactsTable',
 ]
 
 from .Types       import ( Ctx, NoCtx, Facet, FacetBindable, BoundFacet    #
@@ -44,16 +43,18 @@ from .Types       import ( Ctx, NoCtx, Facet, FacetBindable, BoundFacet    #
                          , CtxSelfRichReprable, isCtxClsRichReprable       #
                          , isCtxSelfRichReprable, isRichReprable, Var      #
                          , Connective, Relation, Vared, GoalCtxSizedVared  #
-                         , CtxSized, RelationSized, GoalCtxSized, GoalVared)
+                         , CtxSized, RelationSized, GoalCtxSized, GoalVared
+                         , MaybeCtxSized, Reifier                          )
 from .Facets      import ( FacetABC, FacetRichReprMixin, CtxRichRepr       #
                          , HooksPipelines, HooksEvents, HooksBroadcasts    #
                          , HooksShortCircuit                               )
 from .Metrics     import   Metrics
-from .Vars        import ( Var, __, Vars, VarTypes, Substitutions          #
-                         , TypeAssumps, SymAssumps, CtxVarRichRepr         )
+from .Vars        import ( Var, __, Vars, VarsReifiers, Substitutions          #
+                         , ReifiersAssumps, SymAssumps, CtxVarRichRepr         #
+                         , VarDomains, DomainABC, FiniteDiscreteDomain     )
 from .Unification import   Unification
 from .Goals       import   Succeed, Fail, Eq, Goal, GoalABC, And, Or
-from .Streams     import   mbind, mconcat
-from .Constraints import   Constraints, ConstraintVarsABC, Neq, Distinct
-from .Solvers     import ( SolverABC, Solver)
-from .Relations   import   TabRel
+from .Constraints import ( Constraints, ConstraintVarsABC, Neq, Distinct   #
+                         , Notin                                           )
+from .Solvers     import   SolverABC, Solver
+from .Relations   import   FactsTable

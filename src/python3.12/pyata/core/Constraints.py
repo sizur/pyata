@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 from abc        import ABC, abstractmethod
-from typing     import Any, ClassVar, Set, Self
+from typing     import Any, ClassVar, Iterable, Set, Self
 
 import rich.repr   as RR
 import rich.pretty as RY
@@ -18,7 +18,7 @@ from ..immutables  import   Set
 
 
 __all__: list[str] = [
-    'Constraints', 'ConstraintVarsABC', 'Neq', 'Distinct'
+    'Constraints', 'ConstraintVarsABC', 'Neq', 'Distinct', 'Notin'
 ]
 
 class Constraints(FacetABC[Var, Set[Constraint]], FacetRichReprMixin[Var]):
@@ -185,3 +185,98 @@ class Distinct(ConstraintVarsABC):
                 return Unification.Failed
             walked.add(val)
         return ctx
+
+
+# TODO: add support for recursive cvars checking.
+class Notin(ConstraintVarsABC):
+    vars: tuple[Var, ...]
+    subj : Var | tuple[Var, ...]
+    # "c" for "collection" or "comparings"
+    cvars: tuple[Var, ...]
+    cvals: frozenset[Any]
+
+    def __init__(self: Self,
+                 constrain: Var | tuple[Var, ...] | Notin,
+                 collection: Iterable[Any] | None = None
+    ) -> None:
+        if isinstance(constrain, Notin):
+            assert collection is None
+            self.subj = constrain.subj
+            self.vars = constrain.vars
+            self.cvars = constrain.cvars
+            self.cvals = constrain.cvals
+            return
+        assert collection is not None
+        self.cvars = tuple(var for var in collection
+                        if isinstance(var, Var))
+        self.cvals = frozenset(val for val in collection
+                              if not isinstance(val, Var))
+        # Constraints have high perf impact (both ways),
+        # so we want to optimize, especially when it adds
+        # low cognitive load.
+        if isinstance(constrain, Var):
+            self.subj = constrain
+            self.vars = (constrain, *self.cvars)
+        elif isinstance(constrain, tuple):  # type: ignore
+            self.subj = tuple(constrain)
+            self.vars = (*self.subj, *self.cvars)
+            self.__call__ = self.__call_star__
+        else:
+            raise TypeError(
+                "constrain must be Var or tuple of Vars, "
+                f"not {constrain!r}")
+    
+    def __call__(self: Self, ctx: Ctx) -> Ctx:
+        assert isinstance(self.subj, Var)
+        ctx, val = Substitutions.walk(ctx, self.subj)
+        if isinstance(val, Var):
+            if self.cvars:
+                for var2 in self.cvars:
+                    ctx, val2 = Substitutions.walk(ctx, var2)
+                    if isinstance(val2, Var) and val == val2:
+                        return Unification.Failed
+            return ctx
+        if val in self.cvals:
+            return Unification.Failed
+        for var2 in self.cvars:
+            ctx, val2 = Substitutions.walk(ctx, var2)
+            if not isinstance(val2, Var) and val2 == val:
+                return Unification.Failed
+        return ctx
+    
+    def __call_star__(self: Self, ctx: Ctx) -> Ctx:
+        assert isinstance(self.subj, tuple)
+        for var in self.subj:
+            ctx, val = Substitutions.walk(ctx, var)
+            if isinstance(val, Var):
+                if self.cvars:
+                    for var2 in self.cvars:
+                        ctx, val2 = Substitutions.walk(ctx, var2)
+                        if isinstance(val2, Var) and val == val2:
+                            return Unification.Failed
+                return ctx
+            if val in self.cvals:
+                return Unification.Failed
+            for var2 in self.cvars:
+                ctx, val2 = Substitutions.walk(ctx, var2)
+                if not isinstance(val2, Var) and val2 == val:
+                    return Unification.Failed
+        return ctx
+
+    def expand(self: Self, collection: Iterable[Any]) -> Notin:
+        new = Notin(self)
+        new.cvals = self.cvals & frozenset(v for v in collection
+                                            if not isinstance(v, Var))
+        new.cvars = (*self.cvars, *tuple(
+            var for var in collection
+            if isinstance(var, Var) and var not in self.cvars))
+        return new
+
+    def contract(self: Self, collection: Iterable[Any]) -> Notin:
+        new = Notin(self)
+        new.cvals = self.cvals - frozenset(v for v in collection
+                                            if not isinstance(v, Var))
+        new.cvars = tuple(
+            var for var in self.cvars
+            if var not in collection)
+        return new

@@ -2,23 +2,26 @@
 # -*- coding: utf-8; mode: python -*-
 
 
+from abc import ABC, abstractmethod
 from typing import (
-    Any, ClassVar, Final, Iterable, Mapping, TypedDict, Self, cast
+    Any, Callable, ClassVar, Final, Iterable, Mapping, TypedDict, Self, cast
 )
 
-import immutables     as IM
-import rich.repr      as RR
-import rich.pretty    as RY
+import immutables
+import rich
+import rich.repr, rich.pretty
 
 from .Types  import ( Ctx, RichReprable, Var                      #
-                    , isCtxSelfRichReprable, isCtxClsRichReprable )
+                    , CtxClsRichReprable, CtxSelfRichReprable     #
+                    , Reifier                                     )
 from .Facets import ( FacetABC, FacetRichReprMixin, HooksEvents   #
                     , HooksPipelines, HookEventCB, HookPipelineCB )
+from ..immutables import Set, SetMutation
 
 
 __all__: list[str] = [
-    'Var', 'VarTypes', 'Substitutions', 'Vars', 'TypeAssumps', 'SymAssumps',
-    '__', 'CtxVarRichRepr'
+    'Var', 'VarsReifiers', 'Substitutions', 'Vars', 'ReifiersAssumps', 'SymAssumps',
+    '__', 'CtxVarRichRepr', 'VarDomains', 'DomainABC', 'FiniteDiscreteDomain'
 ]
 
 
@@ -59,22 +62,33 @@ __: Final[Var] = Var("__")
 # TODO: maybe not needed?
 class CtxVarRichRepr:
     def __init__(self: Self, ctx: Ctx, var: Var) -> None:
-        self.var: Var = var
-        ctx, val = Substitutions.walk(ctx, var)
-        if var == val or isinstance(val, Var):
-            pass
-        elif isCtxSelfRichReprable(val):
-            ctx, val = val.__ctx_self_rich_repr__(ctx)
-        elif isCtxClsRichReprable(val):
-            ctx, val = val.__ctx_cls_rich_repr__(ctx)
         self.ctx = ctx
-        self.val: Any = val
+        self.var: Var = var
+        self.val: Any = var
+        self.reify()
+    
+    def reify(self: Self, ctx: Ctx | None = None) -> tuple[Ctx, Any]:
+        self.ctx = ctx if ctx else self.ctx
+        if not isinstance(self.val, Var):
+            return self.ctx, self.val
+        self.ctx, self.val = Vars.walk_reify(self.ctx, self.var)
+        if self.var == self.val or isinstance(self.val, Var):
+            return self.ctx, self.val
+        if isinstance(self.val, CtxSelfRichReprable):
+            self.ctx, self.val = self.val.__ctx_self_rich_repr__(self.ctx)
+        elif isinstance(self.val, CtxClsRichReprable):
+            self.ctx, self.val = self.val.__ctx_cls_rich_repr__(self.ctx)
+        return self.ctx, self.val
         
-    def __rich_repr__(self: Self) -> RR.Result:
-        if self.var == self.val:
-            yield RY.pretty_repr(self.var)
+    def __rich_repr__(self: Self) -> rich.repr.Result:
+        _, self.val = self.reify()
+        if self.val == self.var:
+            yield self.var
+        elif isinstance(self.val, Var):
+            yield (rich.pretty.pretty_repr(self.var),
+                   rich.pretty.pretty_repr(self.val))
         else:
-            yield RY.pretty_repr(self.var), RY.pretty_repr(self.val)
+            yield rich.pretty.pretty_repr(self.var), self.val
 CtxVarRichRepr.__name__ = '_'
 
 
@@ -83,33 +97,34 @@ VAR_TYP_ASSUMPS: Final[dict[type, SymAssumps]] = {
 }
 
 
-class TypeAssumps(FacetABC[type, IM.Map[str, bool]], FacetRichReprMixin[type]):
-    default: ClassVar[IM.Map[str, bool]] = IM.Map[str, bool]()
+class ReifiersAssumps(FacetABC[Reifier, immutables.Map[str, bool]],
+                      FacetRichReprMixin[Reifier]):
+    default: ClassVar[immutables.Map[str, bool]] = immutables.Map[str, bool]()
     
     @classmethod
     def update_assumps(
         cls: type[Self],
         ctx: Ctx,
-        defs: Mapping[type, SymAssumps]
+        defs: Mapping[Reifier, SymAssumps]
     ) -> Ctx:
         """Update adapter for type assumptions."""
         return cls.update(
-            ctx, {t: IM.Map[str, bool](
+            ctx, {t: immutables.Map[str, bool](
                 {k: bool(b) for k, b in sa.items()}
                 ) for t, sa in defs.items()})
     
     @classmethod
     def __ctx_cls_rich_repr__(cls: type[Self], ctx: Ctx) -> tuple[Ctx, RichReprable]:
         class TypeAssumpsRichRepr:
-            def __init__(self: Self, cls: type[TypeAssumps], ctx: Ctx) -> None:
-                self.cls: type[TypeAssumps] = cls
+            def __init__(self: Self, cls: type[ReifiersAssumps], ctx: Ctx) -> None:
+                self.cls: type[ReifiersAssumps] = cls
                 self.ctx: Ctx = ctx
-            def __rich_repr__(self: Self) -> RR.Result:
+            def __rich_repr__(self: Self) -> rich.repr.Result:
                 for key in cls.__key_ordered__(self.ctx):
                     class AssumpsRichRepr:
-                        def __init__(self: Self, assumps: IM.Map[str, bool]) -> None:
-                            self.assumps: IM.Map[str, bool] = assumps
-                        def __rich_repr__(self: Self) -> RR.Result:
+                        def __init__(self: Self, assumps: immutables.Map[str, bool]) -> None:
+                            self.assumps: immutables.Map[str, bool] = assumps
+                        def __rich_repr__(self: Self) -> rich.repr.Result:
                             for k, v in self.assumps.items():
                                 yield k, v
                     AssumpsRichRepr.__name__ = key.__name__
@@ -117,12 +132,13 @@ class TypeAssumps(FacetABC[type, IM.Map[str, bool]], FacetRichReprMixin[type]):
         TypeAssumpsRichRepr.__name__ = cls.__name__
         return ctx, TypeAssumpsRichRepr(cls, ctx)
 
-class VarTypes(FacetABC[Var, type | None], FacetRichReprMixin[Var]):
-    default: ClassVar[type | None] = None
+class VarsReifiers(FacetABC[Var, Reifier | None],
+                   FacetRichReprMixin[Var]):
+    default: ClassVar[Reifier | None] = None
     
     @classmethod
     def _val_repr(cls: type[Self], ctx: Ctx, key: Var) -> Any:
-        val: type | None = cls.get(ctx, key)
+        val: Reifier | None = cls.get(ctx, key)
         try:
             return val.__name__
         except AttributeError:
@@ -217,36 +233,66 @@ class Vars:
     def fresh(
         cls: type[Self],
         ctx: Ctx,
-        typ: type | None = None,
+        reifier: Reifier | tuple[Reifier, ...] | None = None,
         num: int | None = None,
         /,
         **kwargs: SymAssumps
     ) -> tuple[Ctx, tuple[Var, ...]]:
-        if not isinstance(typ, tuple):
-            typ = (typ,)     # type: ignore
+        if not isinstance(reifier, tuple):
+            reifier = (reifier,)     # type: ignore
         if num is not None:
-            typ = typ * num  # type: ignore
-        assert not (typ == ())
+            reifier = reifier * num  # type: ignore
+        assert not (reifier == ())
         
-        num = len(VarTypes.get_whole(ctx))
-        new_vars: dict[Var, type | None] = {}
-        for i, t in enumerate(cast(tuple[type[Any], ...], typ), 1 + num):
-            new_vars[Var(f"_{i-1}", **TypeAssumps.get(ctx, t), **kwargs)] = t
-        ctx = VarTypes.update(ctx, new_vars)
+        num = len(VarsReifiers.get_whole(ctx))
+        new_vars: dict[Var, Reifier | None] = {}
+        for i, t in enumerate(cast(tuple[Reifier, ...], reifier), 1 + num):
+            new_vars[Var(f"_{i}", **ReifiersAssumps.get(ctx, t), **kwargs)] = t
+        ctx = VarsReifiers.update(ctx, new_vars)
         # TODO: Decide if it should be a broadcast or a pipeline hook.
         #       Keeping it a broadcast until we have a use case for pipeline.
         ctx = HooksEvents.run(ctx, cls.hook_fresh, new_vars)
         return ctx, tuple(new_vars)
 
     @classmethod
-    def walk_and_classify_vars(
+    def walk_reify(
+        cls: type[Self],
+        ctx: Ctx,
+        var: Var
+    ) -> tuple[Ctx, Any]:
+        ctx, val = Substitutions.walk(ctx, var)
+        if isinstance(val, Var):
+            return ctx, val
+        typ = VarsReifiers.get(ctx, var)
+        if typ is None:
+            return ctx, val
+        return ctx, typ(val)
+
+    @classmethod
+    def contextualize(
+        cls: type[Self],
+        ctx: Ctx,
+        reifier: Reifier,
+        *vars: Var
+    ) -> tuple[Ctx, tuple[Var, ...]]:
+        vartyps = VarsReifiers.get_whole(ctx)
+        cconflict: list[Var] = []
+        for var in vars:
+            if var not in vartyps:
+                ctx = VarsReifiers.set(ctx, var, reifier)
+            else:
+                cconflict.append(var)
+        return ctx, tuple(cconflict)
+    
+    @classmethod
+    def walk_reify_vars(
         cls: type[Self],
         ctx: Ctx,
         vars: Iterable[Var]
     ) -> tuple[Ctx, tuple[Any, ...]]:
         ret: list[Any] = []
         for var in vars:
-            typ = VarTypes.get(ctx, var)
+            typ = VarsReifiers.get(ctx, var)
             ctx, var = Substitutions.walk(ctx, var)
             if typ is not None and not isinstance(var, Var):
                 var = typ(var)
@@ -261,3 +307,62 @@ class Vars:
     ) -> Ctx:
         return HooksEvents.hook(ctx, cls.hook_fresh, cb)
 
+
+class DomainABC(ABC):
+    @abstractmethod
+    def expand(self: Self, vals: Iterable[Any]) -> Self:
+        raise NotImplementedError
+    
+    @abstractmethod
+    def contract(self: Self, vals: Iterable[Any]) -> Self:
+        raise NotImplementedError
+
+
+class FiniteDiscreteDomain[T](Set[T], DomainABC):
+    def expand(self: Self, vals: Iterable[T]) -> Self:
+        return self.union(vals)
+    
+    def contract(self: Self, vals: Iterable[T]) -> Self:
+        def mutator(s: SetMutation[T]) -> None:
+            for val in vals:
+                s.remove(val)
+        return self.mutate(mutator)
+
+
+# TODO: Create a protocol for domains
+class VarDomains(FacetABC[Var, DomainABC | None], FacetRichReprMixin[Var]):
+    default: ClassVar[DomainABC | None] = None
+
+    @classmethod
+    def expand(
+        cls: type[Self],
+        ctx: Ctx,
+        var: Var,
+        vals: DomainABC
+    ) -> Ctx:
+        domain: DomainABC | None = cls.get(ctx, var)
+        if domain is None:
+            return cls.set(ctx, var, vals)
+        else:
+            return cls.set(ctx, var, domain.expand(vals))
+    
+    @classmethod
+    def contract(
+        cls: type[Self],
+        ctx: Ctx,
+        var: Var,
+        vals: DomainABC
+    ) -> Ctx:
+        domain: DomainABC | None = cls.get(ctx, var)
+        if domain is None:
+            return cls.set(ctx, var, vals)
+        else:
+            return cls.set(ctx, var, domain.contract(vals))
+
+    @classmethod
+    def is_existent(
+        cls: type[Self],
+        ctx: Ctx,
+        var: Var
+    ) -> bool:
+        return cls.get(ctx, var) is not None

@@ -15,7 +15,7 @@ import sympy          as SY
 __all__: list[str] = [
 
     # Core Types
-    'Ctx', 'NoCtx', 'Facet', 'Var',
+    'Ctx', 'NoCtx', 'Facet', 'Var', 'Reifier',
 
     # Facet Convenience Types (ContextManager)
     'FacetBindable', 'BoundFacet',
@@ -28,7 +28,7 @@ __all__: list[str] = [
     # miniKanren Core Types
     'Stream', 'Goal', 'Connective', 'Constraint', 'Relation', 'Vared',
     'GoalCtxSizedVared', 'CtxSized', 'RelationSized', 'GoalVared',
-    'GoalCtxSized',
+    'GoalCtxSized', 'MaybeCtxSized',
 
     # Hooking Types
     'HookEventCB', 'HookPipelineCB', 'HookBroadcastCB', 'HookCB',
@@ -124,12 +124,14 @@ class FacetBindable[K: Hashable, V: Hashable](Protocol):
 #  Rich Repr-able Types
 # -----------------------
 #
+@runtime_checkable
 class FacetKeyOrd[K: Hashable](Facet[K, Any], Protocol):
     @classmethod
     def __key_ord__(cls: type[Self], ctx: Ctx) -> Iterable[K]:
         raise NotImplementedError
 
 
+@runtime_checkable
 class RichReprable(Protocol):
     def __rich_repr__(self: Self) -> rich_repr_Result:
         raise NotImplementedError
@@ -137,6 +139,7 @@ class RichReprable(Protocol):
 def isRichReprable(obj: object) -> TypeGuard[RichReprable]:
     return hasattr(obj, '__rich_repr__')
 
+@runtime_checkable
 class CtxClsRichReprable(Protocol):
     @classmethod
     def __ctx_cls_rich_repr__(cls: type[Self], ctx: Ctx) -> tuple[Ctx, RichReprable]:
@@ -147,6 +150,7 @@ def isCtxClsRichReprable(obj: object) -> TypeGuard[CtxClsRichReprable]:
 
 class FacetRichReprable(Facet[Any, Any], CtxClsRichReprable, Protocol): pass
 
+@runtime_checkable
 class CtxSelfRichReprable(Protocol):
     def __ctx_self_rich_repr__(self: Self, ctx: Ctx) -> tuple[Ctx, RichReprable]:
         raise NotImplementedError
@@ -168,18 +172,23 @@ class Stream(Protocol):
         raise NotImplementedError
 
 # TODO: RichReprable, CtxSelfRichReprable
+@runtime_checkable
 class Goal(Protocol):
     def __call__(self: Self, ctx: Ctx) -> Stream:
         raise NotImplementedError
 
-
+@runtime_checkable
 class Vared(Protocol):
     vars: tuple[Var, ...]
-
 
 @runtime_checkable
 class CtxSized(Protocol):
     def __ctx_len__(self: Self, ctx: Ctx) -> int:
+        raise NotImplementedError
+
+@runtime_checkable
+class MaybeCtxSized(Protocol):
+    def __maybe_ctx_len__(self: Self, ctx: Ctx) -> int:
         raise NotImplementedError
 
 @runtime_checkable
@@ -188,11 +197,9 @@ class GoalVared(Goal, Vared, Protocol): pass
 @runtime_checkable
 class GoalCtxSized(Goal, CtxSized, Protocol): pass
 
-
 @runtime_checkable
 class GoalCtxSizedVared(Goal, Vared, CtxSized, Protocol):
     distribution: dict[Var, dict[Any, int]]
-
 
 class Connective(Goal, Protocol):
     def __init__(self: Self, goal: Goal, *g_or_c: Goal | Constraint) -> None:
@@ -209,12 +216,15 @@ class Constraint(CtxSelfRichReprable, Protocol):
 
 
 class Relation[*T](Protocol):
+    name: str
     def __call__(self: Self, *args: *T) -> GoalVared:
         raise NotImplementedError
 
 
 class RelationSized[*T](Relation[*T], Sized, Protocol):
     def __call__(self: Self, *args: *T) -> GoalCtxSizedVared:
+        raise NotImplementedError
+    def get_facts(self: Self) -> tuple[*T]:
         raise NotImplementedError
 
 
@@ -245,3 +255,5 @@ class HookBroadcastCB[T](Protocol):
 
 
 Var = SY.Symbol
+
+type Reifier = Callable[[Any], Any]

@@ -271,8 +271,7 @@ class Metrics:
                 self._metrics.ctx, self.key, self)
             
             self.skip_stats_timeseries = skip_stats_timeseries
-            if not skip_stats_timeseries:
-                self._metrics._hook_per_sec(self._per_sec_hook)
+            self._metrics._hook_per_sec(self._per_sec_hook)
 
         def obs_to_dtype(self: Self, obs: N) -> NP.dtype[Any]:
             return self.obs_dtype(obs)
@@ -284,7 +283,8 @@ class Metrics:
             def __call__(self: Self, val: N) -> N:
                 ctx = self._metrics.ctx
                 self._metrics._perf_ns()
-                ctx = MetricsObsBuf.observation(ctx, self.key, val)
+                if not self.skip_stats_timeseries:
+                    ctx = MetricsObsBuf.observation(ctx, self.key, val)
                 ctx = HooksBroadcasts.run(
                     ctx, (Metrics.Sensor, type(self)), (self.key, val))
                 if isBroadcastKey(self.key):
@@ -310,6 +310,8 @@ class Metrics:
         #           ╰────────────────────────────────────────────────────────╯ 
         
         def _per_sec_hook(self: Self, ctx: Ctx, data: tuple[int, int]) -> Ctx:
+            if self.skip_stats_timeseries:
+                return ctx
             t_took, t_ns = data
             key, ctx, ini = self.key, self._metrics.ctx, self.ini
             nobs: int

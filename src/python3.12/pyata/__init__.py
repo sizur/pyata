@@ -8,9 +8,10 @@ __all__: list[str] = [
     'Goal', 'Constraint', 'Solver', 'HookEventCB', 'HookPipelineCB',
     'HookBroadcastCB', 'HookCB', 'BroadcastKey', 'isBroadcastKey',
     'Relation', 'Connective', 'SolverABC', 'Solver', 'CtxClsRichReprable',
-    'GoalSized', 'CtxSelfRichReprable', 'isCtxClsRichReprable',
+    'CtxSelfRichReprable', 'isCtxClsRichReprable',
     'isCtxSelfRichReprable', 'isRichReprable', 'CtxVarRichRepr',
     'Vared', 'Goal', 'GoalCtxSizedVared', 'GoalCtxSized', 'GoalVared',
+    'MaybeCtxSized',
     
     'FacetABC', 'FacetRichReprMixin', 'CtxRichRepr',
     
@@ -18,18 +19,16 @@ __all__: list[str] = [
                           
     'Metrics',
     
-    'Var', 'VarTypes', 'Substitutions', 'Vars', 'TypeAssumps', 'SymAssumps',
-    '__',
+    'Var', 'VarsReifiers', 'Substitutions', 'Vars', 'ReifiersAssumps', 'SymAssumps',
+    '__', 'Reifier',
     
     'Unification',
     
     'Eq', 'Fail', 'Succeed', 'GoalABC', 'And', 'Or',
     
-    'mbind', 'mconcat',
-    
     'Constraints', 'ConstraintVarsABC', 'Neq', 'Distinct',
     
-    'TabRel',
+    'FactsTable',
     
     'Cel', 'Nnl', 'Map', 'MapMutation', 'Set', 'SetMutation',
     'cons_is_empty', 'cons_is_not_empty', 'cons_from_iterable',
