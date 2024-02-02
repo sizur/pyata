@@ -1,0 +1,149 @@
+
+[project]
+
+name = "pyata"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "immutables",
+    "pydantic_settings",
+    "sympy",
+    "rich",
+    "more_itertools",
+    "numpy",
+    "scipy",
+]
+
+authors = [
+    { name = "Yevgeniy Grigoryev" },
+]
+maintainers = [
+    { name = "Yevgeniy Grigoryev" },
+]
+
+readme = {file = "README.md", content-type = "text/markdown"}
+
+description = "5th Generation Python"
+
+keywords = [
+    'logic', 'relational', 'miniKanren', 'constraint', 'solver', 'declarative',
+     '5gl', 'prolog',
+]
+
+license = {file = "LICENSE"}
+
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Software Development :: Code Generators",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+[project.optional-dependencies]
+dev = [
+    "poetry",
+    "pyright",
+    "pytest",
+    "pytest-timeout",
+    "sphinx",
+    "sphinx-rtd-theme",
+]
+
+[project.urls]
+Repository = "https://github.com/sizur/pyata"
+
+[tool.flake8]
+ignore = "E265"
+
+[tool.pyright]
+
+extraPaths = ["src/python3.12"]
+include = ["src/python3.12", "tests/python3.12"]
+
+
+pythonPlatform = "All"
+
+ignore = ["src/oldstuff"]
+
+# defineConstant = { DEBUG = true }
+
+pythonVersion = "3.12"
+
+executionEnvironments = [
+    { root =   "src/python3.12" },
+    { root = "tests/python3.12", include = ["src/python3.12"] },
+]
+
+typeCheckingMode = "strict"
+strictDictionaryInference = true
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = " --strict-config -ra -q --timeout=1"
+python_files = "*.py"
+testpaths = [
+    "tests/python3.12",
+]
+markers = [
+    "smoke: mark a test as a smoke test",
+]
+
+# [build-system]
+# requires = ["setuptools>=61.0", "build"]
+# build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src/python3.12"]
+include = ["pyata*"]
+namespaces = true
+
+[tool.poetry]
+name = "pyata"
+version = "0.1.0"
+description = "5th Generation Python 3"
+authors = ["Yevgeniy Grigoryev"]
+license = "BSD-3-Clause"
+readme = "README.md"
+packages = [
+    { include = "pyata", from = "src/python3.12" },
+]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+click_completion = "^0.5.0"
+humanize = "^4.0.0"
+immutables = "^0.20"
+loguru = "^0.7.0"
+more_itertools = "^10.0.0"
+nltk = "^3.0.0"
+numpy = "^1.0.0"
+pydantic_settings = "^2.0.0"
+rich = "^13.0.0"
+scipy = "^1.0.0"
+sympy = "^1.0.0"
+typer = "^0.9.0"
+
+[tool.poetry.group.dev.dependencies]
+pyright = "^1.0.0"
+setuptools = "^69.0.0"
+build = "^1.0.0"
+
+[tool.poetry.group.test.dependencies]
+pytest = "^7.0.0"
+pytest-timeout = "^2.0.0"
+
+[tool.poetry.group.docs]
+optional = true
+
+[tool.poetry.group.docs.dependencies]
+sphinx = "^7.0.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "setuptools.build_meta" # "poetry.core.masonry.api"
