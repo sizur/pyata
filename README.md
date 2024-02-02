@@ -2,11 +2,11 @@
 
 Pyata is a general logic solver (or symbolic rule-based inference engine) in Python.  It is based on its own implementation of miniKanren relational programming EDSL (embedded domain specific language).  Pyata is under heavy development, and its API is still very fluid.  Consider it pre-alpha.
 
-## Features:
+## Features
 
 - The usual miniKanren goodness of:
   - Omnidirectional computation (forward, backward, or fill in the holes)
-  - Guaranteed solutions if they exist, even in infinite recursive search spaces
+  - Guaranteed solutions if they exist, even in presence of failing infinite recursive search spaces branches
 - `Facets`: Modular, immutable HAMT-based context weaving,
   enabling minimal accidental complexity of extensions
 - Support for creating custom hooks for extensions (Events, Broadcasts, Pipelines)
@@ -19,6 +19,7 @@ Pyata is a general logic solver (or symbolic rule-based inference engine) in Pyt
   - `Vared`: does the goal keep track of its variables?
   - `CtxSized`: is the goal aware of its search-space size?
   - Does it provide hooks for tracking progress?
+- [*soon*] `Sympy` integration for expressive constraints, and constraints simplification during propagation (soon)
 
 ## Screenshots
 Examople from [./src/python3.12/pyata/examples/crosswords.py](./src/python3.12/pyata/examples/crosswords.py),
