@@ -23,6 +23,19 @@ Pyata [ˈpʲjɑtɐ] is a general logic solver (or symbolic rule-based inference 
   - Does it provide hooks for tracking progress?
 - [*soon*] `Sympy` integration for expressive constraints, and constraints simplification during propagation
 
+## Possible Applications
+
+### Immediate (more or less)
+
+- DCG specification for context-aware language grammar, providing at the same time parsing, generation, hole-filling, and with a bit more effort translation
+- Relational interpreters for existing programming languages, providing cutting-edge type inference, checking, and proving; implementation inference, automatic edge-case detection, and more
+- prototyping new type systems, and programming languages
+- [Experimential mathematics](https://en.wikipedia.org/wiki/Experimental_mathematics)
+
+### Longer-term
+
+- Uptraining existing base LLM model to always use a tool like this for reasoning, making them robust and reasoning transparent.
+
 ## Screenshots
 Examople from [./src/python3.12/pyata/examples/crosswords.py](./src/python3.12/pyata/examples/crosswords.py),
 demonstrating performance of unification over a large search space.
