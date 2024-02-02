@@ -19,6 +19,7 @@ Pyata is a general logic solver (or symbolic rule-based inference engine) in Pyt
   - `Vared`: does the goal keep track of its variables?
   - `CtxSized`: is the goal aware of its search-space size?
   - Does it provide hooks for tracking progress?
+- `Sympy` integration for expressive constraints, and constraints simplification during propagation (soon)
 
 ## Screenshots
 Examople from [./src/python3.12/pyata/examples/crosswords.py](./src/python3.12/pyata/examples/crosswords.py),
