@@ -179,7 +179,7 @@ expected = """Ctx(
     ),
     Substitutions(x=1, y=1)
 )"""
-def test_Neq():
+def test_Neq_repr():
     ctx = NoCtx
     x = Var('x')
     y = Var('y')
@@ -198,4 +198,40 @@ def test_Neq():
         ) == 'Ctx(Constraints(x={Neq(x=2, y=1)}, y={Neq(x=2, y=1)}), Substitutions(x=2, y=1))'
     ctx = Substitutions.sub(ctx, x, 1)
     assert pretty_repr(CtxRichRepr(ctx)) == expected
+    
+
+def test_iterable_unification():
+    ctx = NoCtx
+    ctx = Unification.hook_unify(ctx, UnificationIterables.unify_hook)
+    assert ctx is not Unification.Failed
+    ctx = Unification.unify(ctx, 1, 1)
+    assert ctx is not Unification.Failed
+    ctxF = Unification.unify(ctx, 1, 2)
+    assert ctxF is Unification.Failed
+    ctx = Unification.unify(ctx, [1], [1])
+    assert ctx is not Unification.Failed
+    ctxF = Unification.unify(ctx, [1], [2])
+    assert ctxF is Unification.Failed
+    ctx = Unification.unify(ctx, [1, 2], [1, 2])
+    assert ctx is not Unification.Failed
+    ctxF = Unification.unify(ctx, [1, 2], [1, 3])
+    assert ctxF is Unification.Failed
+    ctxF = Unification.unify(ctx, [1, 2], [1])
+    assert ctxF is Unification.Failed
+    ctxF = Unification.unify(ctx, [1], [1, 2])
+    assert ctxF is Unification.Failed
+    ctxF = Unification.unify(ctx, [1], [])
+    assert ctxF is Unification.Failed
+    ctxF = Unification.unify(ctx, [], [1])
+    assert ctxF is Unification.Failed
+    ctx = Unification.unify(ctx, [], [])
+    assert ctx is not Unification.Failed
+    ctx = Unification.unify(ctx, [1, 2], [1, ...])
+    assert ctx is not Unification.Failed
+    ctx = Unification.unify(ctx, [1, ...], [1, 2])
+    assert ctx is not Unification.Failed
+    ctx = Unification.unify(ctx, [1, 2, 3], [1, ...])
+    assert ctx is not Unification.Failed
+    ctx = Unification.unify(ctx, [1, ...], [1, 2, 3])
+    assert ctx is not Unification.Failed
     

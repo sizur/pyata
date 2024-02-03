@@ -54,7 +54,7 @@ Pyata [ˈpʲjɑtɑ] is a general logic solver (or symbolic rule-based inference 
 - Uptraining existing base LLM model to always use a tool like this for reasoning, making them robust and reasoning transparent
 
 ## Screenshots
-Examople from [./src/python3.12/pyata/examples/crosswords.py](./src/python3.12/pyata/examples/crosswords.py),
+Example from [./src/python3.12/pyata/examples/crosswords.py](./src/python3.12/pyata/examples/crosswords.py),
 demonstrating performance of unification over a large search space.
 
 ![Crosswords](./crosswords.png)

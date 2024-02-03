@@ -22,7 +22,7 @@ __all__: list[str] = [
     'Var', 'VarsReifiers', 'Substitutions', 'Vars', 'ReifiersAssumps', 'SymAssumps',
     '__', 'Reifier',
     
-    'Unification',
+    'Unification', 'UnificationIterables',
     
     'Eq', 'Fail', 'Succeed', 'GoalABC', 'And', 'Or',
     

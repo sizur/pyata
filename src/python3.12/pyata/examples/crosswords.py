@@ -454,7 +454,7 @@ class CrosswordSolver(Solver):
             show: list[Any] = []
             for cell in row:
                 if isinstance(cell, Var):
-                    ctx, val = Substitutions.walk(ctx, cell)
+                    ctx, val = Vars.walk_reify(ctx, cell)
                     show.append(' ')
                     if isinstance(val, Var):
                         show.append('_')
@@ -462,9 +462,9 @@ class CrosswordSolver(Solver):
                         if not internal and self.specials \
                             and cell in self.specials[
                                 int(time.time()) % len(self.specials)]:
-                            show.append(f'[bright_cyan][bold]{chr(val)}[/bold][/bright_cyan]')
+                            show.append(f'[bright_cyan][bold]{val}[/bold][/bright_cyan]')
                         else:
-                            show.append(chr(val))
+                            show.append(val)
                     show.append(' ')
                 else:
                     show.append('   ')

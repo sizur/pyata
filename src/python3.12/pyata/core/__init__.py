@@ -23,7 +23,7 @@ __all__: list[str] = [
     'Var', 'VarsReifiers', 'Substitutions', 'Vars', 'ReifiersAssumps', 'SymAssumps',
     '__', 'CtxVarRichRepr', 'VarDomains', 'DomainABC', 'FiniteDiscreteDomain',
     
-    'Unification',
+    'Unification', 'UnificationIterables',
     
     'Eq', 'Fail', 'Succeed', 'GoalABC', 'Goal', 'And', 'Or',
     
@@ -52,7 +52,7 @@ from .Metrics     import   Metrics
 from .Vars        import ( Var, __, Vars, VarsReifiers, Substitutions          #
                          , ReifiersAssumps, SymAssumps, CtxVarRichRepr         #
                          , VarDomains, DomainABC, FiniteDiscreteDomain     )
-from .Unification import   Unification
+from .Unification import   Unification, UnificationIterables
 from .Goals       import   Succeed, Fail, Eq, Goal, GoalABC, And, Or
 from .Constraints import ( Constraints, ConstraintVarsABC, Neq, Distinct   #
                          , Notin                                           )
