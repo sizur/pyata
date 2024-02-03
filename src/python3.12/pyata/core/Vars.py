@@ -164,10 +164,12 @@ class Substitutions(FacetABC[Var, Any], FacetRichReprMixin[Var]):
         _track: set[Var] | None = None
     ) -> tuple[Ctx, Any]:
         subs = cls.get_whole(ctx)
-        if not (var in subs):
+        if not (isinstance(  # pyright: ignore[reportUnnecessaryIsInstance]
+            var, Var) and var in subs
+        ):
             return ctx, var
         sub = subs.get(var, var)
-        if not (sub in subs and isinstance(sub, Var)):
+        if not (isinstance(sub, Var) and sub in subs):
             return ctx, sub
         track = _track if _track else {var}
         track.add(sub)
