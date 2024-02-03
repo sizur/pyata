@@ -234,4 +234,17 @@ def test_iterable_unification():
     assert ctx is not Unification.Failed
     ctx = Unification.unify(ctx, [1, ...], [1, 2, 3])
     assert ctx is not Unification.Failed
-    
+    ctx = Unification.unify(ctx, [1, ...], [1, ...])
+    assert ctx is not Unification.Failed
+    var = Var('var')
+    ctx = Unification.unify(ctx, [1, 2, 3], [1, var, 3])
+    assert ctx is not Unification.Failed
+    ctx, val = Substitutions.walk(ctx, var)
+    assert val == 2
+    ctx = Unification.unify(ctx, [1, var, 3], [1, 2, 3])
+    assert ctx is not Unification.Failed
+    ctx, val = Substitutions.walk(ctx, var)
+    assert val == 2
+    ctxF = Unification.unify(ctx, [1, 2, var], [1, 2, 3])
+    assert ctxF is Unification.Failed
+

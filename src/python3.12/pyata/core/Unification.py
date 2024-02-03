@@ -18,8 +18,10 @@ class Unification:
     @classmethod
     def unify(cls: type[Self], ctx: Ctx, x: Any, y: Any) -> Ctx:
         """Unifies x and y, updating the substitution chain and returning a new state."""
-        ctx, x = Substitutions.walk(ctx, x)
-        ctx, y = Substitutions.walk(ctx, y)
+        if isinstance(x, Var):
+            ctx, x = Substitutions.walk(ctx, x)
+        if isinstance(y, Var):
+            ctx, y = Substitutions.walk(ctx, y)
         if x == y or x is __ or y is __:
             return ctx  # already unified
         if isinstance(x, Var):
