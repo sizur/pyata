@@ -32,7 +32,7 @@ Pyata [ˈpʲjɑtɐ] is a general logic solver (or symbolic rule-based inference 
 
 - Pyomo for optimization
 - SVXPY for convex optimization
-- one of topological optimization libraries for experimential search guidance
+- One of topological optimization libraries for experimential search guidance
 - PuLP for linear programming, maybe?
 - Gurobi for mixed integer programming, maybe?
 
@@ -42,7 +42,7 @@ Pyata [ˈpʲjɑtɐ] is a general logic solver (or symbolic rule-based inference 
 
 - DCG specification for context-aware language grammar, providing at the same time parsing, generation, hole-filling, and with a bit more effort, translation
 - Prototyping solvers for any specific problem domain that doesn't have a dedicated solver readily available
-- prototyping new type systems, and programming languages
+- Prototyping new type systems, and programming languages
 - [Experimential mathematics](https://en.wikipedia.org/wiki/Experimental_mathematics)
 
 ### Non-immediate
@@ -51,7 +51,7 @@ Pyata [ˈpʲjɑtɐ] is a general logic solver (or symbolic rule-based inference 
 
 ### Longer-term
 
-- Uptraining existing base LLM model to always use a tool like this for reasoning, making them robust and reasoning transparent.
+- Uptraining existing base LLM model to always use a tool like this for reasoning, making them robust and reasoning transparent
 
 ## Screenshots
 Examople from [./src/python3.12/pyata/examples/crosswords.py](./src/python3.12/pyata/examples/crosswords.py),
