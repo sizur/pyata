@@ -23,14 +23,31 @@ Pyata [ˈpʲjɑtɐ] is a general logic solver (or symbolic rule-based inference 
   - Does it provide hooks for tracking progress?
 - [*soon*] `Sympy` integration for expressive constraints, and constraints simplification during propagation
 
+## Planned Integrations
+
+- Z3 SMT solver to speed up many aspects of constraint propagation and search optimization.  It's incremental mode fits Pyata almost as naturally as Sympy does
+- TensorFlow and/or PyTorch for ML-based search guidance
+
+## Potential Integrations
+
+- Pyomo for optimization
+- SVXPY for convex optimization
+- one of topological optimization libraries for experimential search guidance
+- PuLP for linear programming, maybe?
+- Gurobi for mixed integer programming, maybe?
+
 ## Possible Applications
 
 ### Immediate (more or less)
 
-- DCG specification for context-aware language grammar, providing at the same time parsing, generation, hole-filling, and with a bit more effort translation
-- Relational interpreters for existing programming languages, providing cutting-edge type inference, checking, and proving; implementation inference, automatic edge-case detection, and more
+- DCG specification for context-aware language grammar, providing at the same time parsing, generation, hole-filling, and with a bit more effort, translation
+- Prototyping solvers for any specific problem domain that doesn't have a dedicated solver readily available
 - prototyping new type systems, and programming languages
 - [Experimential mathematics](https://en.wikipedia.org/wiki/Experimental_mathematics)
+
+### Non-immediate
+
+- Relational interpreters for existing programming languages, providing cutting-edge type inference, checking, and proving; implementation inference, automatic edge-case detection, test-case generation with edge-case coverage verification, general verification that is certifiable (in a sense of "here are the steps that [dis]prove it")
 
 ### Longer-term
 
