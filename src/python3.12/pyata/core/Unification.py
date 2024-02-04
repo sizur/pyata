@@ -9,7 +9,9 @@ from  .Vars       import __, Substitutions
 from ..immutables import Map
 
 
-__all__: list[str] = ['Unification', 'UnificationIterables']
+__all__: list[str] = [
+    'Unification', 'UnificationIterables', 'UnificationIterablesTypeGuard'
+]
 
 
 class Unification:
@@ -105,3 +107,15 @@ class UnificationIterables:
             if not ctx:
                 return Unification.Failed, (x, y) # Elements not unifiable.
         assert_never(...)             # Unreachable.
+
+class UnificationIterablesTypeGuard:
+    
+    @classmethod
+    def unify_hook(cls: type[Self], ctx: Ctx, data: tuple[Any, Any]
+                   ) -> tuple[Ctx, tuple[Any, Any]]:
+        x, y = data
+        if (not ctx or x == y or
+            isinstance(x, type(y)) or isinstance(y, type(x))
+        ):
+            return ctx, (x, y)
+        return Unification.Failed, (x, y)

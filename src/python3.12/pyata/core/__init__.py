@@ -23,7 +23,7 @@ __all__: list[str] = [
     'Var', 'VarsReifiers', 'Substitutions', 'Vars', 'ReifiersAssumps', 'SymAssumps',
     '__', 'CtxVarRichRepr', 'VarDomains', 'DomainABC', 'FiniteDiscreteDomain',
     
-    'Unification', 'UnificationIterables',
+    'Unification', 'UnificationIterables', 'UnificationIterablesTypeGuard',
     
     'Eq', 'Fail', 'Succeed', 'GoalABC', 'Goal', 'And', 'Or',
     
@@ -49,10 +49,11 @@ from .Facets      import ( FacetABC, FacetRichReprMixin, CtxRichRepr       #
                          , HooksPipelines, HooksEvents, HooksBroadcasts    #
                          , HooksShortCircuit                               )
 from .Metrics     import   Metrics
-from .Vars        import ( Var, __, Vars, VarsReifiers, Substitutions          #
-                         , ReifiersAssumps, SymAssumps, CtxVarRichRepr         #
+from .Vars        import ( Var, __, Vars, VarsReifiers, Substitutions      #
+                         , ReifiersAssumps, SymAssumps, CtxVarRichRepr     #
                          , VarDomains, DomainABC, FiniteDiscreteDomain     )
-from .Unification import   Unification, UnificationIterables
+from .Unification import ( Unification, UnificationIterables               #
+                         , UnificationIterablesTypeGuard                   )
 from .Goals       import   Succeed, Fail, Eq, Goal, GoalABC, And, Or
 from .Constraints import ( Constraints, ConstraintVarsABC, Neq, Distinct   #
                          , Notin                                           )

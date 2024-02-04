@@ -258,4 +258,33 @@ def test_iterable_unification():
                             [[0, 1], [3, [4, 5], 6], ...],
                             [[0, 1], [3, var2, ...], [7, 8]])
     assert ctx is not Unification.Failed
+    ctx = Unification.unify(ctx,
+                            [[0, 1], [__, [4, 5], 6], ...],
+                            [[0, 1], [3, var2, ...], [7, 8]])
+    assert ctx is not Unification.Failed
+    ctx = Unification.unify(ctx,
+                            [[0, 1], [3, [4, 5], 6], ...],
+                            [[0, 1], [__, var2, ...], [7, 8]])
+    assert ctx is not Unification.Failed
+    ctx = Unification.unify(ctx,
+                            [[0, 1], [__, [4, 5], 6], ...],
+                            [[0, 1], [__, var2, ...], [7, 8]])
+    assert ctx is not Unification.Failed
+    
+    # Iterables without a type guard
+    ctx = Unification.unify(ctx,
+                            [[0, 1], [3, [4, 5], 6], ...],
+                            ((0, 1), (3, var2, ...), (7, 8)))
+    assert ctx is not Unification.Failed
 
+    # Iterables with a type guard
+    ctx = Unification.hook_unify(ctx, UnificationIterablesTypeGuard.unify_hook)
+    assert ctx is not Unification.Failed
+    ctxF = Unification.unify(ctx,
+                            [[0, 1], [3, [4, 5], 6], ...],
+                            ((0, 1), (3, var2, ...), (7, 8)))
+    assert ctxF is Unification.Failed
+    ctx = Unification.unify(ctx,
+                            [[0, 1], [3, [4, 5], 6], ...],
+                            [[0, 1], [3, var2, ...], [7, 8]])
+    assert ctx is not Unification.Failed
