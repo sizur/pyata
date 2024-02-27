@@ -22,7 +22,7 @@ Pyata [ˈpʲjɑtɑ] is a general logic solver (or symbolic rule-based inference 
 
 ## Roadmap
 
-Short-term:
+### Short-term
 - Progress reporting by solvers
   (Connectives are already hooked, just need to write CBs for conjunction and disjunction)
 - `Sympy` integration for expressive numeric constraints, and constraints simplification during propagation
@@ -36,7 +36,7 @@ Short-term:
 - Add extensive test harness
 - Add user and developer documentation
 
-Longer-term:
+### Longer-term
 - Implement auto-parallelized base solver
 - Extend unification lattice with parametric lattice to reason about parametric types
 - Write WASM interpreter in Pyata
