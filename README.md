@@ -13,7 +13,7 @@ Pyata [ˈpʲjɑtɑ] is a general logic solver (or symbolic rule-based inference 
   enabling minimal accidental complexity of extensions
 - Support for creating custom hooks for extensions (Events, Broadcasts, Pipelines)
 - Performant metrics (counters, gauges, stopwatches), with per-second stats timeseries (can be used for ML search guide)
-- Live state observation with Rich integration
+- Live state observation with [Rich](https://rich.readthedocs.io/) integration
 - Custom constraint support, with propagation
 - Performant numpy-based facts relations
 - Automatic, modular, and extensible goal reordering optimizations utilizing goal traits:
@@ -42,7 +42,9 @@ Longer-term:
 - Write WASM interpreter in Pyata
 - Add ML-based search guidance
 - Implement implementation inference
-- Implement a generalized meta-rules inference
+- Implement relation inference
+- Implement higher-order unification
+- Implement a general relation inference
 
 ## Planned Integrations
 
