@@ -16,23 +16,21 @@ Pyata [ˈpʲjɑtɑ] is a general logic solver (or symbolic rule-based inference 
 - Live state observation with Rich integration
 - Custom constraint support, with propagation
 - Performant numpy-based facts relations
-- Extensible heuristics at any level (hierarchical logical connectives, inter/intra-goal integration support)
-- Systemic utilization of goal's levels of "awareness":
+- Automatic, modular, and extensible goal reordering optimizations utilizing goal traits:
   - `Vared`: does the goal keep track of its variables?
   - `CtxSized`: is the goal aware of its search-space size?
-  - Does it provide hooks for tracking progress?
 
 ## Roadmap
 
 Short-term:
 - Progress reporting by solvers
   (Connectives are already hooked, just need to write cbs for conjunction and disjunction)
-- `Sympy` integration for expressive numeric constraints, and constraints simplification during propagation.
+- `Sympy` integration for expressive numeric constraints, and constraints simplification during propagation
   (Var's are already `sympy.Symbol`s, so it's a matter of extending unification and constraints)
-- More advanced auto-pruning of `Vared` and `CtxSized` goals via goal cardinality constraint.
+- More advanced auto-pruning of `Vared` and `CtxSized` goals via goal cardinality constraints
   (needs a way to mark unsafe CBs so they are cleared for such look-ahead types of contexts)
 - Delegate per-sec stats summarization to hooks for custom modularity
-- Extend unification with a unification lattice to reason about type unions and intersections
+- Extend unification with a unification lattice to reason about type intersections and unions (anti-unification)
 - Demo DCG for WASM Sexprs
 
 Longer-term:
