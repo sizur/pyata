@@ -9,10 +9,11 @@ import rich
 import rich.pretty, rich.repr
 
 from .Constraints import Constraints
-from .Facets import FacetABC, FacetRichReprMixin, CtxRichRepr
+from .Facets import FacetABC, FacetRichReprMixin, CtxRichRepr, \
+    HooksEvents, HooksPipelines, HooksBroadcasts
 from .Metrics import Metrics
-from .Types  import Ctx, NoCtx, Var, Goal, HookEventCB, RichReprable, \
-    CtxSized
+from .Types  import Ctx, NoCtx, Var, Goal, HookEventCB, HookPipelineCB, \
+    HookBroadcastCB, RichReprable, CtxSized, BroadcastKey
 from .Vars   import Vars, SymAssumps, Substitutions
 
 
@@ -59,9 +60,19 @@ class SolverABC(ABC):
         self._skip_step_stats_timeseries = skip_step_stats_timeseries
         self.__pyata_solver_pre_init__()
 
-    def instrument(self: Self, cb: Callable[[Ctx], Ctx]) -> Self:
+    def instrument(self: Self, cb: Callable[[Ctx], Ctx]) -> None:
         self.ctx = cb(self.ctx)
-        return self
+
+    def hook_event(self: Self, key: Any, cb: HookEventCB[Any]) -> None:
+        self.instrument(lambda ctx: HooksEvents.hook(ctx, key, cb))
+    
+    def hook_pipeline(self: Self, key: Any, cb: HookPipelineCB[Any]
+                      ) -> None:
+        self.instrument(lambda ctx: HooksPipelines.hook(ctx, key, cb))
+    
+    def hook_broadcast(self: Self, key: BroadcastKey, cb: HookBroadcastCB[Any]
+                       ) -> None:
+        self.instrument(lambda ctx: HooksBroadcasts.hook(ctx, key, cb))
     
     def __pyata_solver_pre_init__(self: Self) -> None:
         # Extend the context with constraints functionaality.

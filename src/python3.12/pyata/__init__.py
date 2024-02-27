@@ -11,7 +11,7 @@ __all__: list[str] = [
     'CtxSelfRichReprable', 'isCtxClsRichReprable',
     'isCtxSelfRichReprable', 'isRichReprable', 'CtxVarRichRepr',
     'Vared', 'Goal', 'GoalCtxSizedVared', 'GoalCtxSized', 'GoalVared',
-    'MaybeCtxSized',
+    'MaybeCtxSized', 'Progressable', 'Named',
     
     'FacetABC', 'FacetRichReprMixin', 'CtxRichRepr',
     

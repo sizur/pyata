@@ -244,6 +244,11 @@ class HooksABC[H: HookCB[Any]](
     def run(cls: type[Self], ctx: Ctx, key: Any, arg: Any
             ) -> Ctx | tuple[Ctx, Any]:
         raise NotImplementedError
+
+    @classmethod
+    def clear(cls: type[Self], ctx: Ctx, key: Any) -> Ctx:
+        """Clear all callbacks from a key in context."""
+        return cls.set(ctx, key, cls.default)
     
     @classmethod
     def __init_subclass__(cls: type[Self], **kwargs: Any) -> None:

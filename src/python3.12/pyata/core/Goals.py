@@ -6,22 +6,22 @@ from collections import defaultdict
 from collections.abc import Sized
 from math import prod
 from more_itertools import interleave_longest
-from typing import Any, Self, cast
+from typing import Any, Self
 
 import rich, \
     scipy          # type: ignore
 import rich.pretty, rich.repr, \
     scipy.special  # pyright: ignore[reportMissingTypeStubs]
 
-from .Constraints import Notin
-from .Facets      import HooksBroadcasts, HookBroadcastCB
+from .Facets      import (HooksPipelines, HookPipelineCB)
 from .Types       import (Var, Ctx, Goal, GoalVared, GoalCtxSized,
                           GoalCtxSizedVared, Constraint, Stream,
                           Connective, MaybeCtxSized, RichReprable,
-                          CtxSelfRichReprable
+                          CtxSelfRichReprable, Named
                           )
 from .Unification import Unification
 from .Vars        import Vars
+from ..immutables import Map, Set
 
 
 __all__: list[str] = [
@@ -37,8 +37,8 @@ def mbind(stream: Stream, goal: Goal) -> Stream:
         yield from goal(ctx)
 
 
-class GoalABC(ABC, Goal):
-    name: str | None
+class GoalABC(ABC, Goal, Named, CtxSelfRichReprable):
+    name: str
     RichReprDecor: type[RichReprable]
     
     def __init__(self: Self, *, name: str | None = None) -> None:
@@ -52,17 +52,19 @@ class GoalABC(ABC, Goal):
                     raise TypeError(
                         f'Cannot infer name for {self!r}. '
                     ) from e
-        self.name = name
+        else:
+            self.name = name
     
     @abstractmethod
     def __call__(self: Self, ctx: Ctx) -> Stream:
         raise NotImplementedError
 
     def __rich_repr__(self: Self) -> rich.repr.Result:
-        if hasattr(self, 'name'):
+        if self.name:
             yield self.name
         if isinstance(self, GoalVared):
-            yield self.vars
+            for var in self.vars:
+                yield var
     
     def __init_subclass__(cls: type, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
@@ -92,6 +94,9 @@ class GoalABC(ABC, Goal):
     def __ctx_self_rich_repr__(self: Self, ctx: Ctx
                                ) -> tuple[Ctx, RichReprable]:
         return ctx, self.RichReprDecor(self, ctx)
+    
+    def progress(self: Self, cur: int, tot: int) -> None:
+        pass
 
 
 class Succeed(GoalABC):
@@ -128,7 +133,6 @@ class Eq(GoalABC):
 class ConnectiveABC(GoalABC, Connective, ABC):
     goals: tuple[Goal, ...]
     constraints: tuple[Constraint, ...]
-    constraining_vars: tuple[Var, ...] | None
     RichReprDecor: type[RichReprable]
     
     def __init__(self: Self, goal: Goal, *g_or_c: Goal | Constraint,
@@ -143,10 +147,12 @@ class ConnectiveABC(GoalABC, Connective, ABC):
                 goals.append(g_c)
         self.constraints = tuple(constraints)
         self.goals = (goal, *goals)
-        self.constraining_vars = None
+        self.var_to_goals = Map[Var, Set[GoalVared]]()
         
         if (isinstance(self, MaybeCtxSized)
             and any(isinstance(g, GoalCtxSized) for g in self.goals)):
+            # This check is needed for composable nested connectives
+            # to propagate Sized-ness when possible.
             self.__ctx_len__ = self.__maybe_ctx_len__
         
         # Vared duck-type
@@ -158,7 +164,29 @@ class ConnectiveABC(GoalABC, Connective, ABC):
                         vars.append(var)
         if vars:
             self.vars: tuple[Var, ...] = tuple(vars)
+    
+    def get_vars_entanglement_vec(self: Self) -> list[int]:
+        return [len(self.var_to_goals[var]) for var in self.vars]
 
+    def __call__(self: Self, ctx: Ctx) -> Stream:
+        for constraint in self.constraints:
+            ctx = constraint.constrain(ctx)
+        return self._compose_goals(*HooksPipelines.run(
+            ctx, type(self).hook_heuristic, self.goals))
+    
+    @classmethod
+    @abstractmethod
+    def _compose_goals(cls: type[Self], ctx: Ctx,
+                       goals: tuple[Goal, ...]
+    ) -> Stream:
+        raise NotImplementedError
+    
+    @classmethod
+    def hook_heuristic(cls: type[Self], ctx: Ctx,
+                       cb: HookPipelineCB[tuple[Goal, ...]]
+    ) -> Ctx:
+        return HooksPipelines.hook(ctx, cls.hook_heuristic, cb)
+    
     def __rich_repr__(self: Self) -> rich.repr.Result:
         for constraint in self.constraints:
             yield constraint
@@ -195,8 +223,8 @@ class ConnectiveABC(GoalABC, Connective, ABC):
                     else:
                         grepr = goal
                     yield grepr
-                if ego.constraining_vars:
-                    yield 'constraining_vars', ego.constraining_vars
+                if ego.var_to_goals:
+                    yield 'constraining_vars', ego.var_to_goals
         RichRepr.__name__ = cls.__name__
         cls.RichReprDecor = RichRepr
     
@@ -221,203 +249,12 @@ class And(ConnectiveABC, MaybeCtxSized):
                     for var, distrib in goal.distribution.items():
                         for val, num in distrib.items():
                             self.distribution[var][val] += num
-    
-    # TODO: all this mess doesn't belong here.  Abstract it out.
-    def get_ctx_sized_comb_mtx_and_ord(self: Self, ctx: Ctx) -> tuple[
-        list[list[int | None]], dict[Var, dict[Any, int]]
-    ]:
-        shareds: dict[
-            Var, set[GoalCtxSizedVared]] = self.get_shared_vars_of_sized()
-        eligible: set[GoalCtxSized] = {g for gs in shareds.values() for g in gs}
-        mtx: list[list[int | None]] = []
-        shared_distrib: dict[Var, dict[Any, int]] = defaultdict(
-            lambda: defaultdict(int))
-        for goal1 in self.goals:
-            if not isinstance(goal1, GoalCtxSized):
-                mtx.append([None] * len(self.goals))
-                continue
-            row: list[int | None] = []
-            for goal2 in self.goals:
-                if not isinstance(goal2, GoalCtxSized):
-                    row.append(None)
-                    continue
-                
-                if goal1 is goal2:
-                    g1_size = goal1.__ctx_len__(ctx)
-                    row.append(g1_size)
-                    continue
-                
-                g2_size = goal2.__ctx_len__(ctx)
-                
-                if goal1 not in eligible or goal2 not in eligible:
-                    row.append(g2_size)
-                    continue
-                
-                assert isinstance(goal1, GoalCtxSizedVared)
-                assert isinstance(goal2, GoalCtxSizedVared)
-                # TODO: implement heuristic for multivariate dependence using
-                #       Chi-squared test, scipy.stats.contingency.association,
-                #       or something similar.
-                # We only consider dep structure over single vars, for now.
-                shared: list[Var] = [v for v in shareds
-                                     if goal1 in shareds[v]
-                                     and goal2 in shareds[v]]
-                accs: list[int] = []
-                for var in shared:
-                    g1distrib = goal1.distribution[var]
-                    g2distrib = goal2.distribution[var]
-                    # Now we need to compute intersection of the two
-                    # distributions, then the sum of all the values.
-                    # This sum square is the number of ctxs that satisfy both
-                    # goals.
-                    acc: int = 0
-                    commons: set[Any] = set(g1distrib.keys()).intersection(
-                        set(g2distrib.keys()))
-                    for val in commons:
-                        acc += min(g1distrib[val], g2distrib[val])
-                        # We also compute total distribution of shared var
-                        # values, to direct goals value selection.
-                        shared_distrib[
-                            var][val] += g1distrib[val] + g2distrib[val]
-                    accs.append(acc)
-                if accs:
-                    g1g2size: int = max(accs)
-                    row.append(g1g2size)
-                else:
-                    # the two goals don't have a directly common var, so we'll
-                    # just multiply their sizes.
-                    row.append(g2_size)
-            mtx.append(row)
-        return mtx, shared_distrib
-    
-    def get_shared_vars_of_sized(self: Self) -> dict[Var,
-                                                     set[GoalCtxSizedVared]]:
-        shareds: dict[Var, set[GoalVared]] = self.get_shared_vars()
-        sized: set[GoalCtxSized] = {g for g in self.goals
-                                    if isinstance(g, GoalCtxSized)}
-        for var, goalset in list(shareds.items()):
-            shareds[var] = goalset.intersection(sized)
-        return {v: cast(set[GoalCtxSizedVared], gs)
-                for v, gs in sorted(list(shareds.items()),
-                                    key=And._helper_sorted_key, reverse=True)}
-    
-    def get_shared_vars(self: Self) -> dict[Var, set[GoalVared]]:
-        shareds: dict[Var, set[GoalVared]] = defaultdict(set)
-        for goal in self.goals:
-            if isinstance(goal, GoalVared):
-                for var in goal.vars:
-                    shareds[var].add(goal)
-        shareds_list: list[tuple[Var, set[GoalVared]]] = list(shareds.items())
-        return {var: goals for var, goals in sorted(
-            shareds_list, key=And._helper_sorted_key, reverse=True)
-                if len(goals) > 1}
-    
-    @staticmethod
-    def _helper_sorted_key(tup: tuple[Var, set[GoalVared]]) -> int:
-        _, goals = tup
-        return len(goals)
-    
-    # TODO: During the new order construction, we should utilize the
-    #   available information about common variables of already ordered goals.
-    def ctx_heuristic_2(self: Self, ctx: Ctx,
-                        mtx: list[list[int | None]] | None,
-                        shared_distrib: dict[Var, dict[Any, int]] | None
-    ) -> tuple[Ctx,
-               int | None,
-               list[list[int | None]] | None,
-               dict[Var, dict[Any, int]] | None]:
-        if shared_distrib:
-            var_order: list[Var] = list(shared_distrib.keys())
-            var_order.sort(key=lambda v: sum(shared_distrib[v].values()))
-            for goal in self.goals:
-                if not isinstance(goal, GoalVared):
-                    continue
-                g_vars = [(v, shared_distrib[v])
-                        for v in var_order if v in goal.vars]
-                if not g_vars:
-                    continue
-                try:
-                    # TODO: define a protocol for this.
-                    goal.order_direction(g_vars)  # type: ignore
-                except AttributeError:
-                    pass
-        if not mtx or all(cell is None for row in mtx for cell in row):
-            return ctx, None, mtx, shared_distrib
-        to_concat: list[Goal] = []
-        to_sort: list[tuple[int, GoalCtxSized]] = []
-        rm_rows_ixs: set[int] = set()
-        for i, goal in enumerate(self.goals):
-            if all(mtx[i][j] is None for j in range(len(self.goals))):
-                to_concat.append(goal)
-                rm_rows_ixs.add(i)
-            else:
-                to_sort.append((i, cast(GoalCtxSized, goal)))
-        # First we find the goal with the smallest size to start with.
-        def sort_by_self_len(tup: tuple[int, GoalCtxSized]) -> int:
-            i, _ = tup
-            size = mtx[i][i]
-            assert size is not None
-            return size
-        to_sort.sort(key=sort_by_self_len, reverse=True)
-        to_and: list[Goal] = []
-        i = to_sort[-1][0]
-        init_cost = mtx[i][i]
-        assert init_cost is not None
-        cost_upper_limit: int = init_cost
-        while to_sort:
-            i, goal = to_sort.pop()
-            to_and.append(goal)
-            # Now we find the smallest conjunctive goal.
-            def sort_key(tup: tuple[int, GoalCtxSized]) -> int:
-                j, _ = tup
-                n = mtx[i][j]
-                assert n is not None
-                return n
-            if to_sort:
-                to_sort.sort(key=sort_key, reverse=True)
-                conj_cost = mtx[i][to_sort[-1][0]]
-                assert conj_cost is not None
-                cost_upper_limit *= int(conj_cost)
-        to_and.extend(to_concat)
-        assert len(to_and) == len(self.goals)
-        self.goals = tuple(to_and)
-        return ctx, cost_upper_limit, mtx, shared_distrib
-    
-    def ctx_heuristic_3(self: Self, ctx: Ctx,
-                        shared_distrib: dict[Var, dict[Any, int]]
-    ) -> list[Notin]:
-        """Create Notin constraints for shared vars."""
-        notins: list[Notin] = []
-        domains: dict[Var, set[Any]] = {
-            v: set(d.keys()) for v, d in shared_distrib.items()}
-        antidomains: dict[Var, set[Any]] = {
-            v: set() for v in shared_distrib}
-        for var in antidomains:
-            for goal in self.goals:
-                if not isinstance(goal, GoalCtxSizedVared):
-                    continue
-                if var in goal.vars:
-                    antidomains[var] |= set(
-                        goal.distribution[var].keys()) - domains[var]
-        if antidomains:
-            for var, antidomain in antidomains.items():
-                if antidomain:
-                    notins.append(Notin(var, antidomain))
-        return notins
-    
-    def __call__(self: Self, ctx: Ctx) -> Stream:
-        for constraint in self.constraints:
-            ctx = constraint.constrain(ctx)
-        
-        # self.ctx_heuristic(ctx)
-        mtx, shared_distrib = self.get_ctx_sized_comb_mtx_and_ord(ctx)
-        notins = self.ctx_heuristic_3(ctx, shared_distrib)
-        for notin in notins:
-            ctx = notin.constrain(ctx)
-        ctx, _, mtx, _ = self.ctx_heuristic_2(ctx, mtx, shared_distrib)
-
-        stream: Stream = self.goals[0](ctx)
-        for goal in self.goals[1:]:
+    @classmethod
+    def _compose_goals(cls: type[Self], ctx: Ctx,
+                       goals: tuple[Goal, ...]
+    ) -> Stream:
+        stream: Stream = goals[0](ctx)
+        for goal in goals[1:]:
             stream = mbind(stream, goal)
         return stream
     
@@ -426,12 +263,231 @@ class And(ConnectiveABC, MaybeCtxSized):
                     for g in self.goals
                     if isinstance(g, GoalCtxSized))
 
-    @classmethod
-    def hook_heuristic(cls: type[Self], ctx: Ctx,
-        cb: HookBroadcastCB[tuple[int, int, tuple[Goal, ...]]]
-    ) -> Ctx:
-        return HooksBroadcasts.hook(ctx, (And, cls.hook_heuristic), cb)
+    @staticmethod
+    def heur_conj_chain_vars(
+        ctx: Ctx,
+        data: tuple[Goal, ...],
+    ) -> tuple[Ctx, tuple[Goal, ...]]:
+        goals = data
+        varedsized = [g for g in goals if isinstance(g, GoalCtxSizedVared)]
+        others = [g for g in goals if not isinstance(g, GoalCtxSizedVared)]
+        sizes = {g: g.__ctx_len__(ctx) for g in varedsized}
+        var_to_goals: dict[Var, set[GoalCtxSizedVared]] = defaultdict(set)
+        for goal in varedsized:
+            for var in goal.vars:
+                var_to_goals[var].add(goal)
+        entanglements = {g: prod(len(var_to_goals[var]) for var in g.vars)
+                        for g in varedsized}
+        def order_key(goal: GoalCtxSizedVared) -> float:
+            return sizes[goal] / entanglements[goal]
+        varedsized.sort(key=order_key)
+        staged: set[GoalCtxSizedVared] = set()
+        for i in range(len(varedsized) - 2):
+            goal = varedsized[i]
+            proced = varedsized[0:i+1]
+            staged = staged.union(g for v in goal.vars for g in var_to_goals[v]
+                                if g not in proced)
+            staged.discard(goal)
+            # if chain is broken, we act as if remaining goals were staged
+            # for the iteration.
+            if not staged:
+                staged_ = set(varedsized[i+1:])
+            else:
+                staged_ = staged
+            assert len(staged_) > 0
+            ix_staged = [ix for ix in range(i + 1, len(varedsized))
+                        if varedsized[ix] in staged_]
+            ix_staged.sort(key=lambda ix: order_key(varedsized[ix]))
+            ix0 = ix_staged[0]
+            ix = i + 1
+            if ix != ix0:
+                varedsized[ix], varedsized[ix0] = varedsized[ix0], varedsized[ix]
+        # TODO: run a broadcast or event hook
+        return ctx, tuple(varedsized + others)
 
+    # # TODO: all this mess doesn't belong here.  Abstract it out.
+    # def get_ctx_sized_comb_mtx_and_ord(self: Self, ctx: Ctx) -> tuple[
+    #     list[list[int | None]], dict[Var, dict[Any, int]]
+    # ]:
+    #     shareds: dict[
+    #         Var, set[GoalCtxSizedVared]] = self.get_shared_vars_of_sized()
+    #     eligible: set[GoalCtxSized] = {g for gs in shareds.values() for g in gs}
+    #     mtx: list[list[int | None]] = []
+    #     shared_distrib: dict[Var, dict[Any, int]] = defaultdict(
+    #         lambda: defaultdict(int))
+    #     for goal1 in self.goals:
+    #         if not isinstance(goal1, GoalCtxSized):
+    #             mtx.append([None] * len(self.goals))
+    #             continue
+    #         row: list[int | None] = []
+    #         for goal2 in self.goals:
+    #             if not isinstance(goal2, GoalCtxSized):
+    #                 row.append(None)
+    #                 continue
+                
+    #             if goal1 is goal2:
+    #                 g1_size = goal1.__ctx_len__(ctx)
+    #                 row.append(g1_size)
+    #                 continue
+                
+    #             g2_size = goal2.__ctx_len__(ctx)
+                
+    #             if goal1 not in eligible or goal2 not in eligible:
+    #                 row.append(g2_size)
+    #                 continue
+                
+    #             assert isinstance(goal1, GoalCtxSizedVared)
+    #             assert isinstance(goal2, GoalCtxSizedVared)
+    #             # TODO: implement heuristic for multivariate dependence using
+    #             #       Chi-squared test, scipy.stats.contingency.association,
+    #             #       or something similar.
+    #             # We only consider dep structure over single vars, for now.
+    #             shared: list[Var] = [v for v in shareds
+    #                                  if goal1 in shareds[v]
+    #                                  and goal2 in shareds[v]]
+    #             accs: list[int] = []
+    #             for var in shared:
+    #                 g1distrib = goal1.distribution[var]
+    #                 g2distrib = goal2.distribution[var]
+    #                 # Now we need to compute intersection of the two
+    #                 # distributions, then the sum of all the values.
+    #                 # This sum square is the number of ctxs that satisfy both
+    #                 # goals.
+    #                 acc: int = 0
+    #                 commons: set[Any] = set(g1distrib.keys()).intersection(
+    #                     set(g2distrib.keys()))
+    #                 for val in commons:
+    #                     acc += min(g1distrib[val], g2distrib[val])
+    #                     # We also compute total distribution of shared var
+    #                     # values, to direct goals value selection.
+    #                     shared_distrib[
+    #                         var][val] += g1distrib[val] + g2distrib[val]
+    #                 accs.append(acc)
+    #             if accs:
+    #                 g1g2size: int = max(accs)
+    #                 row.append(g1g2size)
+    #             else:
+    #                 # the two goals don't have a directly common var, so we'll
+    #                 # just multiply their sizes.
+    #                 row.append(g2_size)
+    #         mtx.append(row)
+    #     return mtx, shared_distrib
+    
+    # def get_shared_vars_of_sized(self: Self) -> dict[Var,
+    #                                                  set[GoalCtxSizedVared]]:
+    #     shareds: dict[Var, set[GoalVared]] = self.get_shared_vars()
+    #     sized: set[GoalCtxSized] = {g for g in self.goals
+    #                                 if isinstance(g, GoalCtxSized)}
+    #     for var, goalset in list(shareds.items()):
+    #         shareds[var] = goalset.intersection(sized)
+    #     return {v: cast(set[GoalCtxSizedVared], gs)
+    #             for v, gs in sorted(list(shareds.items()),
+    #                                 key=And._helper_sorted_key, reverse=True)}
+    
+    # def get_shared_vars(self: Self) -> dict[Var, set[GoalVared]]:
+    #     shareds: dict[Var, set[GoalVared]] = defaultdict(set)
+    #     for goal in self.goals:
+    #         if isinstance(goal, GoalVared):
+    #             for var in goal.vars:
+    #                 shareds[var].add(goal)
+    #     shareds_list: list[tuple[Var, set[GoalVared]]] = list(shareds.items())
+    #     return {var: goals for var, goals in sorted(
+    #         shareds_list, key=And._helper_sorted_key, reverse=True)
+    #             if len(goals) > 1}
+    
+    # @staticmethod
+    # def _helper_sorted_key(tup: tuple[Var, set[GoalVared]]) -> int:
+    #     _, goals = tup
+    #     return len(goals)
+    
+    # # TODO: During the new order construction, we should utilize the
+    # #   available information about common variables of already ordered goals.
+    # def ctx_heuristic_2(self: Self, ctx: Ctx,
+    #                     mtx: list[list[int | None]] | None,
+    #                     shared_distrib: dict[Var, dict[Any, int]] | None
+    # ) -> tuple[Ctx,
+    #            int | None,
+    #            list[list[int | None]] | None,
+    #            dict[Var, dict[Any, int]] | None]:
+    #     if shared_distrib:
+    #         var_order: list[Var] = list(shared_distrib.keys())
+    #         var_order.sort(key=lambda v: sum(shared_distrib[v].values()))
+    #         for goal in self.goals:
+    #             if not isinstance(goal, GoalVared):
+    #                 continue
+    #             g_vars = [(v, shared_distrib[v])
+    #                     for v in var_order if v in goal.vars]
+    #             if not g_vars:
+    #                 continue
+    #             try:
+    #                 # TODO: define a protocol for this.
+    #                 goal.order_direction(g_vars)  # type: ignore
+    #             except AttributeError:
+    #                 pass
+    #     if not mtx or all(cell is None for row in mtx for cell in row):
+    #         return ctx, None, mtx, shared_distrib
+    #     to_concat: list[Goal] = []
+    #     to_sort: list[tuple[int, GoalCtxSized]] = []
+    #     rm_rows_ixs: set[int] = set()
+    #     for i, goal in enumerate(self.goals):
+    #         if all(mtx[i][j] is None for j in range(len(self.goals))):
+    #             to_concat.append(goal)
+    #             rm_rows_ixs.add(i)
+    #         else:
+    #             to_sort.append((i, cast(GoalCtxSized, goal)))
+    #     # First we find the goal with the smallest size to start with.
+    #     def sort_by_self_len(tup: tuple[int, GoalCtxSized]) -> int:
+    #         i, _ = tup
+    #         size = mtx[i][i]
+    #         assert size is not None
+    #         return size
+    #     to_sort.sort(key=sort_by_self_len, reverse=True)
+    #     to_and: list[Goal] = []
+    #     i = to_sort[-1][0]
+    #     init_cost = mtx[i][i]
+    #     assert init_cost is not None
+    #     cost_upper_limit: int = init_cost
+    #     while to_sort:
+    #         i, goal = to_sort.pop()
+    #         to_and.append(goal)
+    #         # Now we find the smallest conjunctive goal.
+    #         def sort_key(tup: tuple[int, GoalCtxSized]) -> int:
+    #             j, _ = tup
+    #             n = mtx[i][j]
+    #             assert n is not None
+    #             return n
+    #         if to_sort:
+    #             to_sort.sort(key=sort_key, reverse=True)
+    #             conj_cost = mtx[i][to_sort[-1][0]]
+    #             assert conj_cost is not None
+    #             cost_upper_limit *= int(conj_cost)
+    #     to_and.extend(to_concat)
+    #     assert len(to_and) == len(self.goals)
+    #     self.goals = tuple(to_and)
+    #     return ctx, cost_upper_limit, mtx, shared_distrib
+    
+    # def ctx_heuristic_3(self: Self, ctx: Ctx,
+    #                     shared_distrib: dict[Var, dict[Any, int]]
+    # ) -> list[Notin]:
+    #     """Create Notin constraints for shared vars."""
+    #     notins: list[Notin] = []
+    #     domains: dict[Var, set[Any]] = {
+    #         v: set(d.keys()) for v, d in shared_distrib.items()}
+    #     antidomains: dict[Var, set[Any]] = {
+    #         v: set() for v in shared_distrib}
+    #     for var in antidomains:
+    #         for goal in self.goals:
+    #             if not isinstance(goal, GoalCtxSizedVared):
+    #                 continue
+    #             if var in goal.vars:
+    #                 antidomains[var] |= set(
+    #                     goal.distribution[var].keys())
+    #     if antidomains:
+    #         for var, antidomain in antidomains.items():
+    #             if antidomain:
+    #                 notins.append(Notin(var, antidomain - domains[var]))
+    #     return notins
+    
     # # NOTE: Currenty not used
     # def ctx_heuristic(self: Self, ctx: Ctx) -> None:
     #     sized = tuple(g for g in self.goals if isinstance(g, GoalCtxSized))
@@ -496,14 +552,13 @@ class Or(ConnectiveABC, MaybeCtxSized):
                             for val, num in distrib.items():
                                 self.distribution[var][val] += num
     
-    def __call__(self: Self, ctx: Ctx) -> Stream:
-        for constraint in self.constraints:
-            ctx = constraint.constrain(ctx)
-        return mconcat(*(goal(ctx) for goal in self.goals))
+    @classmethod
+    def _compose_goals(cls: type[Self], ctx: Ctx,
+                       goals: tuple[Goal, ...]
+    ) -> Stream:
+        return mconcat(*(goal(ctx) for goal in goals))
 
     def __maybe_ctx_len__(self: Self, ctx: Ctx) -> int:
         return sum(g.__ctx_len__(ctx)
                    for g in self.goals
                    if isinstance(g, GoalCtxSized))
-
-

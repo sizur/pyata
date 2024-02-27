@@ -11,7 +11,7 @@ __all__: list[str] = [
     'isCtxSelfRichReprable', 'isRichReprable', 'Connective',
     'Vared', 'Relation', 'GoalCtxSizedVared', 'CtxSized',
     'RelationSized', 'GoalCtxSized', 'GoalVared', 'MaybeCtxSized',
-    'Reifier',
+    'Reifier', 'Progressable', 'Named',
     
     'FacetABC', 'FacetRichReprMixin', 'CtxRichRepr',
     'CtxClsRichReprable', 'CtxSelfRichReprable',
@@ -44,7 +44,7 @@ from .Types       import ( Ctx, NoCtx, Facet, FacetBindable, BoundFacet    #
                          , isCtxSelfRichReprable, isRichReprable, Var      #
                          , Connective, Relation, Vared, GoalCtxSizedVared  #
                          , CtxSized, RelationSized, GoalCtxSized, GoalVared
-                         , MaybeCtxSized, Reifier                          )
+                         , MaybeCtxSized, Reifier, Progressable, Named     )
 from .Facets      import ( FacetABC, FacetRichReprMixin, CtxRichRepr       #
                          , HooksPipelines, HooksEvents, HooksBroadcasts    #
                          , HooksShortCircuit                               )
@@ -54,7 +54,7 @@ from .Vars        import ( Var, __, Vars, VarsReifiers, Substitutions      #
                          , VarDomains, DomainABC, FiniteDiscreteDomain     )
 from .Unification import ( Unification, UnificationIterables               #
                          , UnificationIterablesTypeGuard                   )
-from .Goals       import   Succeed, Fail, Eq, Goal, GoalABC, And, Or
+from .Goals       import ( Succeed, Fail, Eq, Goal, GoalABC, And, Or       )
 from .Constraints import ( Constraints, ConstraintVarsABC, Neq, Distinct   #
                          , Notin                                           )
 from .Solvers     import   SolverABC, Solver

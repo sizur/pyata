@@ -3,10 +3,11 @@
 
 from __future__ import annotations
 from abc        import ABC, abstractmethod
-from typing     import Any, ClassVar, Iterable, Set, Self
+from collections.abc import Hashable
+from typing     import Any, Callable, ClassVar, Iterable, Set, Self
 
-import rich.repr   as RR
-import rich.pretty as RY
+import rich
+import rich.repr, rich.pretty
 
 from  .Types       import ( Ctx, Var, Constraint, RichReprable          #
                           , isCtxClsRichReprable, isCtxSelfRichReprable )
@@ -44,6 +45,42 @@ class Constraints(FacetABC[Var, Set[Constraint]], FacetRichReprMixin[Var]):
     ) -> Ctx:
         return HooksEvents.hook(ctx, cls.hook_propagate, cb)
 
+    @classmethod
+    def mutate_var_constraint[C: Constraint](
+        cls: type[Self],
+        ctx: Ctx,
+        var: Var,
+        old: C,
+        mutator: Callable[[C], C]
+    ) -> tuple[Ctx, C]:
+        new: C = mutator(old)
+        return (cls.set(ctx, var, cls.get(ctx, var).discard(old).add(new)),
+                new)
+    
+    @classmethod
+    def evolve_var_constraint[C: Constraint](
+        cls: type[Self],
+        ctx: Ctx,
+        var: Var,
+        old: C,
+        new: C,
+    ) -> Ctx:
+        return cls.set(ctx, var, cls.get(ctx, var).discard(old).add(new))
+
+    @classmethod
+    def get_by_type[C: Constraint](cls: type[Self], ctx: Ctx, var: Var,
+                                   typ: type[C]
+    ) -> Iterable[C]:
+        return (c for c in cls.get(ctx, var) if isinstance(c, typ))
+
+    @classmethod
+    def check(cls: type[Self], ctx: Ctx, var: Var) -> Ctx:
+        for constraint in cls.get(ctx, var):
+            ctx = constraint(ctx)
+            if ctx is Unification.Failed:
+                return ctx
+        return ctx
+    
     @classmethod
     def substitution_cb(
         cls: type[Self],
@@ -122,7 +159,7 @@ class ConstraintVarsABC(ConstraintABC, ABC):
             ctx = Constraints.constrain(ctx, var, self)
         return ctx
     
-    def __rich_repr__(self: Self) -> RR.Result:
+    def __rich_repr__(self: Self) -> rich.repr.Result:
         for var in self.vars:
             yield var
     
@@ -132,7 +169,7 @@ class ConstraintVarsABC(ConstraintABC, ABC):
             def __init__(self: Self, ego: C, ctx: Ctx) -> None:
                 self.ego: C   = ego
                 self.ctx: Ctx = ctx
-            def __rich_repr__(self: Self) -> RR.Result:
+            def __rich_repr__(self: Self) -> rich.repr.Result:
                 ctx, ego = self.ctx, self.ego
                 if ego(ctx) is Unification.Failed:
                     yield Violation()
@@ -141,7 +178,7 @@ class ConstraintVarsABC(ConstraintABC, ABC):
                     if w == v:
                         yield cls._repr(ctx, v)
                     else:
-                        yield (RY.pretty_repr(cls._repr(ctx, v)),
+                        yield (rich.pretty.pretty_repr(cls._repr(ctx, v)),
                                cls._repr(ctx, w))
         RichRepr.__name__ = cls.__name__
         cls.RichReprDecor = RichRepr
@@ -206,7 +243,8 @@ class Notin(ConstraintVarsABC):
             self.cvars = constrain.cvars
             self.cvals = constrain.cvals
             return
-        assert collection is not None
+        if collection is None:
+            collection = ()
         self.cvars = tuple(var for var in collection
                         if isinstance(var, Var))
         self.cvals = frozenset(val for val in collection
@@ -223,7 +261,7 @@ class Notin(ConstraintVarsABC):
             self.__call__ = self.__call_star__
         else:
             raise TypeError(
-                "constrain must be Var or tuple of Vars, "
+                "'constrain' argument must be Var or tuple of Vars, "
                 f"not {constrain!r}")
     
     def __call__(self: Self, ctx: Ctx) -> Ctx:
@@ -265,11 +303,14 @@ class Notin(ConstraintVarsABC):
 
     def expand(self: Self, collection: Iterable[Any]) -> Notin:
         new = Notin(self)
-        new.cvals = self.cvals & frozenset(v for v in collection
-                                            if not isinstance(v, Var))
-        new.cvars = (*self.cvars, *tuple(
+        new.cvals = self.cvals | frozenset(v for v in collection
+                                           if not isinstance(v, Var))
+        new.cvars = (*self.cvars, *(
             var for var in collection
             if isinstance(var, Var) and var not in self.cvars))
+        if new.cvars == self.cvars and new.cvals == self.cvals:
+            # minimizing context changes, so garbage pressure.
+            return self
         return new
 
     def contract(self: Self, collection: Iterable[Any]) -> Notin:
@@ -280,3 +321,26 @@ class Notin(ConstraintVarsABC):
             var for var in self.cvars
             if var not in collection)
         return new
+
+    def get_cset(self: Self, ctx: Ctx) -> tuple[Ctx, set[Any]]:
+        cset = set(self.cvals)
+        for var in self.cvars:
+            ctx, val = Substitutions.walk(ctx, var)
+            cset.add(val)
+        return ctx, cset
+
+    def fd_domain_filter(self: Self, ctx: Ctx, fd_domain: Iterable[Any]
+                         ) -> Iterable[Any]:
+        """Finite discrete domain filter."""
+        _, cset = self.get_cset(ctx)
+        for val in fd_domain:
+            if isinstance(val, Hashable) and val not in cset:
+                yield val
+
+    def __rich_repr__(self: Self) -> rich.repr.Result:
+        if isinstance(self.subj, tuple):
+            yield 'subjects', self.subj
+        else:
+            yield 'subject', self.subj
+        yield 'objects', self.cvars + tuple(self.cvals)
+        

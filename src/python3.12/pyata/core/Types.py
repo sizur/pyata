@@ -28,7 +28,7 @@ __all__: list[str] = [
     # miniKanren Core Types
     'Stream', 'Goal', 'Connective', 'Constraint', 'Relation', 'Vared',
     'GoalCtxSizedVared', 'CtxSized', 'RelationSized', 'GoalVared',
-    'GoalCtxSized', 'MaybeCtxSized',
+    'GoalCtxSized', 'MaybeCtxSized', 'Progressable', 'Named',
 
     # Hooking Types
     'HookEventCB', 'HookPipelineCB', 'HookBroadcastCB', 'HookCB',
@@ -195,11 +195,20 @@ class MaybeCtxSized(Protocol):
 class GoalVared(Goal, Vared, Protocol): pass
 
 @runtime_checkable
-class GoalCtxSized(Goal, CtxSized, Protocol): pass
+class Progressable(Protocol):
+    def progress(self: Self, cur: int, tot: int) -> None:
+        raise NotImplementedError
 
 @runtime_checkable
-class GoalCtxSizedVared(Goal, Vared, CtxSized, Protocol):
-    distribution: dict[Var, dict[Any, int]]
+class Named(Protocol):
+    name: str
+
+@runtime_checkable
+class GoalCtxSized(Goal, CtxSized, Progressable, Protocol): pass
+
+@runtime_checkable
+class GoalCtxSizedVared(GoalCtxSized, Vared, Protocol):
+    distribution: Mapping[Var, Mapping[Any, int]]
 
 class Connective(Goal, Protocol):
     def __init__(self: Self, goal: Goal, *g_or_c: Goal | Constraint) -> None:

@@ -17,6 +17,9 @@ __all__: list[str] = [
 class Unification:
     Failed: Ctx = Map[type[Facet[Any, Any]], Map[Any, Any]]()
     
+    # TODO: add cb clearing event for look-ahead unification.
+    #   and figure out best way to mark cbs that would need clearing.
+    
     @classmethod
     def unify(cls: type[Self], ctx: Ctx, x: Any, y: Any) -> Ctx:
         """Unifies x and y, updating the substitution chain and returning a new state."""
