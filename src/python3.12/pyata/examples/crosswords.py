@@ -193,10 +193,10 @@ def contig_grps(lst: list[Var | Literal[None]]) -> list[list[Var]]:
     return [cast(list[Var], grp) for grp in (
         list(g) for _, g in groupby(lst, lambda x: x is not None))
             if len(grp) >= MIN_WORD_LEN and grp[0] is not None]
-WORDS: list[list[Var]] = SPECIALS + list(chain(*(
+WORDS: list[list[Var]] = list(chain(*(
     [contig_grps(row) for row in CROSSWORD] +
     [contig_grps(col) for col in zip(*CROSSWORD)]
-)))
+))) + SPECIALS
 
 
 # def subs_debug(ctx: Ctx, data: tuple[Var, Any]) -> tuple[Ctx, tuple[Var, Any]]:
