@@ -32,8 +32,11 @@ Short-term:
 - Delegate per-sec stats summarization to hooks for custom modularity
 - Extend unification with a unification lattice to reason about type intersections and unions (anti-unification)
 - Demo DCG for WASM Sexprs
+- Abstract and extend FactsTable for additional support of [Polars](https://pola.rs/)
+- Add extensive test coverage
 
 Longer-term:
+- Implement auto-parallelized base solver
 - Extend unification lattice with parametric lattice to reason about parametric types
 - Write WASM interpreter in Pyata
 - Add ML-based search guidance
