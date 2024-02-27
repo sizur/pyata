@@ -198,14 +198,6 @@ WORDS: list[list[Var]] = list(chain(*(
     [contig_grps(col) for col in zip(*CROSSWORD)]
 ))) + SPECIALS
 
-
-# def subs_debug(ctx: Ctx, data: tuple[Var, Any]) -> tuple[Ctx, tuple[Var, Any]]:
-#     var, val = data
-#     raise ValueError(f'{var} = {val}')
-#     return ctx, (var, val)
-# ctx = Substitutions.hook_substitution(ctx, subs_debug)
-
-
 ##############################################################################
 # Main
 # ----
@@ -232,8 +224,8 @@ def main(
         f'{humanize.scientific(solver.size(), 2)}')
     
     with rich.live.Live(
-        rich.panel.Panel.fit(''), #str(solver),
-                                  # title="Crossword"),
+        rich.panel.Panel.fit(str(solver),
+                             title="Crossword"),
         console=STDERR,
         auto_refresh=False,
         transient=False
@@ -293,7 +285,6 @@ class CrosswordSolver(Solver):
     @classmethod
     def _class_init(cls: type[Self]) -> None:
         cls.a2d_by_len, cls.definitions = cls.nltk_word_len_to_arr2d()
-        FactsTable.FactsGoal.hook_facts
     
     def __init__(self: Self, ctx: Ctx,
                  words: list[list[Var]],
