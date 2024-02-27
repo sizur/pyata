@@ -24,7 +24,7 @@ Pyata [ˈpʲjɑtɑ] is a general logic solver (or symbolic rule-based inference 
 
 Short-term:
 - Progress reporting by solvers
-  (Connectives are already hooked, just need to write cbs for conjunction and disjunction)
+  (Connectives are already hooked, just need to write CBs for conjunction and disjunction)
 - `Sympy` integration for expressive numeric constraints, and constraints simplification during propagation
   (Var's are already `sympy.Symbol`s, so it's a matter of extending unification and constraints)
 - More advanced auto-pruning of `Vared` and `CtxSized` goals via goal cardinality constraints
@@ -33,7 +33,8 @@ Short-term:
 - Extend unification with a unification lattice to reason about type intersections and unions (anti-unification)
 - Demo DCG for WASM Sexprs
 - Abstract and extend FactsTable for additional support of [Polars](https://pola.rs/)
-- Add extensive test coverage
+- Add extensive test harness
+- Add user and developer documentation
 
 Longer-term:
 - Implement auto-parallelized base solver
