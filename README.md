@@ -31,10 +31,15 @@ Pyata [ˈpʲjɑtɑ] is a general logic solver (or symbolic rule-based inference 
   (needs a way to mark unsafe CBs so they are cleared for such look-ahead types of contexts)
 - Delegate per-sec stats summarization to hooks for custom modularity
 - Extend unification with a unification lattice to reason about type intersections and unions (anti-unification)
-- Demo DCG for WASM Sexprs
+- Demo DCG for WASM Sexprs parsing and synthesis
 - Abstract and extend FactsTable for additional support of [Polars](https://pola.rs/)
 - Add extensive test harness
 - Add user and developer documentation
+
+### Short-term Optional
+- Pure relational binary arithmetic (good for problems valuing unconstrained pure relational aspect above performance)
+- Pure relational lambda calculus
+  - with normalization (required for higher-order unification and optimized implementation synthesis)
 
 ### Longer-term
 - Implement auto-parallelized base solver
@@ -45,9 +50,17 @@ Pyata [ˈpʲjɑtɑ] is a general logic solver (or symbolic rule-based inference 
 - Implement relation inference
 - Implement higher-order unification
 - Implement a general relation inference
+- Port to Mojo for orders of magnitude performance improvement
+- Provide Pyata as LLM tool
+- Implement distributed base solver
+
+### Ultimate
+- Explore non-NN (or hybrid) language model inference
+- Explore self-optimizing inference
 
 ## Planned Integrations
 
+- [Polars](https://pola.rs/) to use its DataFrame and LazyFrame with its every supported datasource as fact relations
 - Z3 SMT solver to speed up many aspects of constraint propagation and search optimization.  It's incremental mode fits Pyata almost as naturally as Sympy does
 - TensorFlow and/or PyTorch for ML-based search guidance
 

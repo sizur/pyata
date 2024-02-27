@@ -2,7 +2,7 @@
 [project]
 
 name = "pyata"
-version = "0.1.0"
+version = "0.2.0"
 requires-python = ">=3.12"
 dependencies = [
     "immutables",
@@ -105,7 +105,7 @@ namespaces = true
 
 [tool.poetry]
 name = "pyata"
-version = "0.1.0"
+version = "0.2.0"
 description = "5th Generation Python 3"
 authors = ["Yevgeniy Grigoryev"]
 license = "BSD-3-Clause"
