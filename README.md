@@ -37,7 +37,7 @@ The `crosswords.py` example can be run in docker from project root with:
 ```bash
 make crosswords
 ```
-On MacOS you may need to use `gmake` instead its ancient `make`.
+On MacOS you may need to use `gmake` instead of its ancient `make`.
 
 ## Roadmap
 
