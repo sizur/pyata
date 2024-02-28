@@ -13,6 +13,7 @@ import rich, \
 import rich.pretty, rich.repr, \
     scipy.special  # pyright: ignore[reportMissingTypeStubs]
 
+from .Constraints import PositiveCardinalityProduct
 from .Facets      import (HooksPipelines, HookPipelineCB)
 from .Types       import (Var, Ctx, Goal, GoalVared, GoalCtxSized,
                           GoalCtxSizedVared, Constraint, Stream,
@@ -249,6 +250,17 @@ class And(ConnectiveABC, MaybeCtxSized):
                     for var, distrib in goal.distribution.items():
                         for val, num in distrib.items():
                             self.distribution[var][val] += num
+        var_to_goals: dict[Var, set[GoalCtxSizedVared]] = defaultdict(set)
+        for goal in [g for g in self.goals
+                     if isinstance(g, GoalCtxSizedVared)]:
+            for var in goal.vars:
+                var_to_goals[var].add(goal)
+        cardinality_constraints: list[PositiveCardinalityProduct] = []
+        for var, goals in var_to_goals.items():
+            cardinality_constraints.append(
+                PositiveCardinalityProduct((var,), tuple(goals)))
+        self.constraints = (*self.constraints, *cardinality_constraints)
+    
     @classmethod
     def _compose_goals(cls: type[Self], ctx: Ctx,
                        goals: tuple[Goal, ...]

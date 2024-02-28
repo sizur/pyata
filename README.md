@@ -4,6 +4,10 @@ Pyata [ˈpʲjɑtɑ] is a general logic solver (or symbolic rule-based inference 
 
 ![Front](./front.gif)
 
+## Updates
+
+- 2024-02-28: much better conjunction search space prunning by the newly implemented `PositiveCardinalityProduct` constraint
+
 ## Features
 
 - The usual miniKanren goodness of:
@@ -16,9 +20,24 @@ Pyata [ˈpʲjɑtɑ] is a general logic solver (or symbolic rule-based inference 
 - Live state observation with [Rich](https://rich.readthedocs.io/) integration
 - Custom constraint support, with propagation
 - Performant numpy-based facts relations
-- Automatic, modular, and extensible goal reordering optimizations utilizing goal traits:
+- Automatic and extensible goal reordering optimizations utilizing goal traits:
   - `Vared`: does the goal keep track of its variables?
   - `CtxSized`: is the goal aware of its search-space size?
+- Automatic and extensible search-space pruning
+
+## Running Examples
+
+### Prerequisites
+```bash
+python3 -m pip install -U poetry
+```
+
+### Crosswords
+The `crosswords.py` example can be run in docker from project root with:
+```bash
+make crosswords
+```
+On MacOS you may need to use `gmake` instead its ancient `make`.
 
 ## Roadmap
 
@@ -27,8 +46,8 @@ Pyata [ˈpʲjɑtɑ] is a general logic solver (or symbolic rule-based inference 
   (Connectives are already hooked, just need to write CBs for conjunction and disjunction)
 - `Sympy` integration for expressive numeric constraints, and constraints simplification during propagation
   (Var's are already `sympy.Symbol`s, so it's a matter of extending unification and constraints)
-- More advanced auto-pruning of `Vared` and `CtxSized` goals via goal cardinality constraints
-  (needs a way to mark unsafe CBs so they are cleared for such look-ahead types of contexts)
+- [DONE] ~~More advanced auto-pruning of `Vared` and `CtxSized` goals via goal cardinality constraints
+  (needs a way to mark unsafe CBs so they are cleared for such look-ahead types of contexts)~~
 - Delegate per-sec stats summarization to hooks for custom modularity
 - Extend unification with a unification lattice to reason about type intersections and unions (anti-unification)
 - Demo DCG for WASM Sexprs parsing and synthesis
@@ -37,11 +56,13 @@ Pyata [ˈpʲjɑtɑ] is a general logic solver (or symbolic rule-based inference 
 - Add user and developer documentation
 
 ### Short-term Optional
-- Pure relational binary arithmetic (good for problems valuing unconstrained pure relational aspect above performance)
+- Pure relational arithmetic (good for problems valuing unconstrained pure relational aspect above performance)
+  Can be implemented using `FactsTable`, gaining auto-pruning for free, for arbitrary integer precision arithmetic. Then extended to rationals, and later to contined fractions and more advanced operations as relations
 - Pure relational lambda calculus
   - with normalization (required for higher-order unification and optimized implementation synthesis)
 
 ### Longer-term
+- Even more advanced pruning can be done by introducing a stage running a simpler goal only considering entangled variables of connectives to identify dead branches earlier
 - Implement auto-parallelized base solver
 - Extend unification lattice with parametric lattice to reason about parametric types
 - Write WASM interpreter in Pyata

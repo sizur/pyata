@@ -341,10 +341,9 @@ class FactsTable[A: np.dtype[Any], *T](RelationABC[*T], Sized):
         return self.arr.shape[0]
 
     def __rich_repr__(self: Self) -> rich.repr.Result:
-        if self.name:
-            yield self.name
-        yield 'cols', self.arr.shape[1]
-        yield 'rows', self.arr.shape[0]
+        yield 'name', self.name
+        yield 'arity', self.arr.shape[1]
+        yield 'facts', self.arr.shape[0]
 
     def get_facts(self: Self) -> Iterable[np.ndarray[ND1, A]]:
         for row in self.arr:

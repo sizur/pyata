@@ -18,4 +18,4 @@ COPY tests tests
 
 RUN poetry install
 
-ENTRYPOINT ["poetry", "run", "pytest", "-m", "smoke",  "./tests/python3.12/smoke.py"]
+CMD ["poetry", "run", "pytest", "-m", "smoke",  "./tests/python3.12/smoke.py"]

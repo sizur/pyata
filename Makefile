@@ -45,7 +45,6 @@ PROJECT_NAME ?= $(shell $(POETRY) version | awk '{print $$1}')
 PROJECT_VERSION ?= $(shell $(POETRY) version -s)
 
 CONTAINER_IMAGE_TAG ?= $(PROJECT_NAME)/$(PROJECT_VERSION)
-CONTAINER_WORKDIR ?= /home/app/workdir
 
 .PHONY: test image
 
@@ -56,3 +55,6 @@ test: image
 
 image: Dockerfile
 	$(CONTAINER_TOOL) build -t $(CONTAINER_IMAGE_TAG) .
+
+crosswords: image
+	$(CONTAINER_TOOL) run --rm -it $(CONTAINER_IMAGE_TAG) poetry run python -O src/python3.12/pyata/examples/crosswords.py

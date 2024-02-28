@@ -4,12 +4,13 @@
 from __future__ import annotations
 from abc        import ABC, abstractmethod
 from collections.abc import Hashable
+from math import prod
 from typing     import Any, Callable, ClassVar, Iterable, Set, Self
 
 import rich
 import rich.repr, rich.pretty
 
-from  .Types       import ( Ctx, Var, Constraint, RichReprable          #
+from  .Types       import ( Ctx, GoalCtxSized, Var, Constraint, RichReprable
                           , isCtxClsRichReprable, isCtxSelfRichReprable )
 from  .Facets      import ( FacetABC, FacetRichReprMixin, HooksEvents   #
                           , HookEventCB                                 )
@@ -19,7 +20,8 @@ from ..immutables  import   Set
 
 
 __all__: list[str] = [
-    'Constraints', 'ConstraintVarsABC', 'Neq', 'Distinct', 'Notin'
+    'Constraints', 'ConstraintVarsABC', 'Neq', 'Distinct', 'Notin',
+    'PositiveCardinalityProduct'
 ]
 
 class Constraints(FacetABC[Var, Set[Constraint]], FacetRichReprMixin[Var]):
@@ -343,4 +345,21 @@ class Notin(ConstraintVarsABC):
         else:
             yield 'subject', self.subj
         yield 'objects', self.cvars + tuple(self.cvals)
-        
+
+
+class PositiveCardinalityProduct(ConstraintVarsABC):
+    vars: tuple[Var         , ...]
+    conj: tuple[GoalCtxSized, ...]
+
+    def __init__(self: Self,
+                 vars : tuple[Var         , ...],
+                 goals: tuple[GoalCtxSized, ...]
+    ) -> None:
+        self.vars = vars
+        self.conj = goals
+    
+    def __call__(self: Self, ctx: Ctx) -> Ctx:
+        size = prod([g.__ctx_len__(ctx) for g in self.conj])
+        if size == 0:
+            return Unification.Failed
+        return ctx

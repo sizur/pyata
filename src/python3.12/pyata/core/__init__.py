@@ -28,6 +28,7 @@ __all__: list[str] = [
     'Eq', 'Fail', 'Succeed', 'GoalABC', 'Goal', 'And', 'Or',
     
     'Constraints', 'ConstraintVarsABC', 'Neq', 'Distinct', 'Notin',
+    'PositiveCardinalityProduct',
     
     'SolverABC', 'Solver',
     
@@ -56,6 +57,6 @@ from .Unification import ( Unification, UnificationIterables               #
                          , UnificationIterablesTypeGuard                   )
 from .Goals       import ( Succeed, Fail, Eq, Goal, GoalABC, And, Or       )
 from .Constraints import ( Constraints, ConstraintVarsABC, Neq, Distinct   #
-                         , Notin                                           )
+                         , Notin, PositiveCardinalityProduct               )
 from .Solvers     import   SolverABC, Solver
 from .Relations   import   FactsTable

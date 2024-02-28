@@ -109,7 +109,7 @@ def CTX(ctx: Ctx) -> CtxRichRepr:
 #
 #_____________________________________________________________________________
 
-# Starting with a fresh context, configure heuristics.
+# Starting with a fresh context, install extensions and configure heuristics.
 ctx: Ctx = NoCtx
 # Randomized intratable factchecking order.
 ctx = FactsTable.FactsGoal.hook_facts(ctx,
@@ -124,12 +124,13 @@ ctx = And.hook_heuristic(ctx,
 (_A,_B,_C,_D,_E,_F,_G,_H,_I,_J,_K,_L,_M,_N,_O,_P,_Q,_R,_S,_T,
  _U,_V,_W,_X,_Y,_Z) = (
      Var(f'_{chr(i)}')for i in range(ord('A'), 1 + ord('Z')))
-(_a,_b,_c,_d,_e,_f,_g,_h,_i,_j,_k,_l,_m,_n,_o,_p,_q,_r,_s
- ) = (
-     Var(f'_{chr(i)}') for i in range(ord('a'), 1 + ord('s')))
+(_a,_b,_c,_d,_e,_f,_g,_h,_i,_j,_k,_l,_m,_n,_o,_p,_q,_r,_s,_t,
+ _u,_v,_w,_x,_y) = (
+     Var(f'_{chr(i)}') for i in range(ord('a'), 1 + ord('y')))
 
 
-MIN_WORD_LEN  = 6
+MIN_WORD_LEN  = 2
+MAX_DEFINITIONS = 1
 BIDIRECTIONAL = False  # does not apply to SPECIALS
 
 _ = None
@@ -145,7 +146,7 @@ CROSSWORD: list[list[Var | int | None | str]] = [
     [_C ,_J ,_I ,_L ,_M ,_O , _ ,_V ,_W , _ ,_g , _ , _ ,_m ,_n ],
     [_B , _ , _ , _ , _ ,_P ,_b , _ ,_X , _ ,_h , _ ,_s , _ ,_o ],
     [_A , _ , _ ,_S ,_R ,_Q ,_a ,_Z ,_Y , _ ,_i ,_j ,_r ,_q ,_p ],
-    [ 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 ,'T', 0 , 0 , 0 , 0 , 0 ],
+    [ 0 , 0 , 0 ,_w ,_u , 0 , 0 ,_t ,_x , 0 ,_v , 0 ,_y , 0 , 0 ],
 ]
 SPECIALS: list[list[Var]] = [
     
@@ -156,6 +157,9 @@ SPECIALS: list[list[Var]] = [
     [_T,_U,_V,_W,_X,_Y,_Z,_a,_b],     # a
     [_c,_d,_e,_f,_g,_h,_i,_j],        # t
     [_k,_l,_m,_n,_o,_p,_q,_r,_s],     # a
+    # [_G,_K,_M,_P,_a,_t],                # (diagonals)
+    # [_u,_Q,_b,_V],
+    # [_v,_j,_s,_m],
 ]
 
 
@@ -196,7 +200,7 @@ def contig_grps(lst: list[Var | Literal[None]]) -> list[list[Var]]:
 WORDS: list[list[Var]] = list(chain(*(
     [contig_grps(row) for row in CROSSWORD] +
     [contig_grps(col) for col in zip(*CROSSWORD)]
-))) + SPECIALS
+))) # + SPECIALS
 
 ##############################################################################
 # Main
@@ -218,8 +222,8 @@ def main(
     
     solver = CrosswordSolver(ctx, WORDS, SPECIALS, BIDIRECTIONAL)
     DBG(solver.wordrels)
-    DBG(solver.get_ctx_repr_for(solver.goal))
-    DBG(CTX(solver.ctx))
+    # DBG(solver.get_ctx_repr_for(solver.goal))
+    # DBG(CTX(solver.ctx))
     DBG('Unconstrained search space size: '
         f'{humanize.scientific(solver.size(), 2)}')
     
@@ -435,7 +439,7 @@ class CrosswordSolver(Solver):
                         vertical='middle')
         tab.add_column(width=60, no_wrap=True, style='white',
                     justify='left')
-        n, xys = 0, len(WORDS) - len(SPECIALS)
+        n, xys = 0, len(WORDS) # - len(SPECIALS)
         for word in words:
             rev = ' '
             n += 1
@@ -443,6 +447,8 @@ class CrosswordSolver(Solver):
                 rev = '⬅'
                 word = word[::-1]
             defs = self.definitions[word]
+            if len(defs) > MAX_DEFINITIONS:
+                defs = sorted(defs, key=len, reverse=True)[:MAX_DEFINITIONS]
             text: list[str] = []
             for d in defs:
                 if n % 2:
@@ -458,7 +464,7 @@ class CrosswordSolver(Solver):
                     "Specials:",
                     style='bright_white bold italic underline')
 
-            if n - xys == 1 + (int(time.time()) % len(SPECIALS)):
+            if SPECIALS and n - xys == 1 + (int(time.time()) % len(SPECIALS)):
                 tab.add_row(*args,
                             style='bright_cyan bold')
             else:
