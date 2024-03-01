@@ -50,7 +50,7 @@ On MacOS you may need to use `gmake` instead of its ancient `make`.
   (needs a way to mark unsafe CBs so they are cleared for such look-ahead types of contexts)~~
 - Delegate per-sec stats summarization to hooks for custom modularity
 - Extend unification with a unification lattice to reason about type intersections and unions (anti-unification)
-- Demo DCG for WASM Sexprs parsing and synthesis
+- Demo DCG for [WASM Sexprs](https://webassembly.github.io/spec/core/text/index.html) parsing and synthesis
 - Abstract and extend FactsTable for additional support of [Polars](https://pola.rs/)
 - Add extensive test harness
 - Add user and developer documentation
@@ -66,6 +66,8 @@ On MacOS you may need to use `gmake` instead of its ancient `make`.
 - Implement auto-parallelized base solver
 - Extend unification lattice with parametric lattice to reason about parametric types
 - Write WASM interpreter in Pyata
+- Write x86_64 interpreter (common instruction subset) in Pyata
+  for reverse engineering, verification, optimization, and synthesis of binaries
 - Add ML-based search guidance
 - Implement implementation inference
 - Implement relation inference

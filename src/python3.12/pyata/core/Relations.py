@@ -105,10 +105,6 @@ class FactsTable[A: np.dtype[Any], *T](RelationABC[*T], Sized):
             dict[Var, Notin],         # expanded notin constraints
             tuple[int, ...]           # filtered free indexes
         ] | None:
-            # global CNT
-            # CNT += 1
-            # print('CNT', CNT)
-            
             mask: np.ndarray[ND1, np.dtype[np.bool_]] = np.ones(
                 self.arr.shape[0], dtype=bool)
             for bix in self.bound_ixs:
