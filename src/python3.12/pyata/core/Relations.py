@@ -387,7 +387,8 @@ class FreshRel[R: Relation[Any], *T](RelationABC[R, *T]):
     needed to enable recursion.  This prevents global `GoalCtxSized`
     optimizations, making them into scoped ones, delimited by fresh relations.
     This is also the reason why `GoalVared` trait of the `FreshGoal` cannot
-    know fresh variables below its scope.
+    know fresh variables below its scope, nor even its own fresh vars prior
+    goal invocation.
     """
     reifier: tuple[Reifier, ...]
     
@@ -396,7 +397,9 @@ class FreshRel[R: Relation[Any], *T](RelationABC[R, *T]):
         vars: tuple[Var, ...]
         reifier: tuple[Reifier, ...]
         
-        def __init__(self: Self, reifier: tuple[Reifier, ...], rel: R, *args: *T, **kwargs: Any) -> None:
+        def __init__(self: Self, reifier: tuple[Reifier, ...],
+                     rel: R, *args: *T, **kwargs: Any
+        ) -> None:
             super().__init__(**kwargs)
             self.rel = rel
             self.vars = tuple(var for var in args if isinstance(var, Var))

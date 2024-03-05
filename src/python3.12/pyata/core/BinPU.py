@@ -170,7 +170,8 @@ def uint8_mapper(hi: int, lo: int) -> tuple[int, ...]:
     return (hi, lo, (hi << 4) + lo)
 
 def uint8_not_mapper(hi: int, lo: int) -> tuple[int, ...]:
-    return (hi << 4 | lo, ~(hi << 4 | lo) & 0xff)
+    mk = (hi << 4) + lo
+    return (mk, ~mk & 0xff)
 
 UINT8_REL: Final[HexRel[Hex, Hex, Byte]] = HexRel(
     'UINT8', uint8_mapper)
