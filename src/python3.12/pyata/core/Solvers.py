@@ -11,6 +11,7 @@ import rich.pretty, rich.repr
 from .Constraints import Constraints
 from .Facets import FacetABC, FacetRichReprMixin, CtxRichRepr, \
     HooksEvents, HooksPipelines, HooksBroadcasts
+from .Goals import And
 from .Metrics import Metrics
 from .Types  import Ctx, NoCtx, Var, Goal, HookEventCB, HookPipelineCB, \
     HookBroadcastCB, RichReprable, CtxSized, BroadcastKey
@@ -30,37 +31,51 @@ class SolverRichReprCtxMixin(ABC, RichReprable):
         yield CtxRichRepr(self.ctx)
 
 
+INSTRUMENTATION: Final[tuple[Callable[[Ctx], Ctx], ...]] = (
+    # Order conjunction goals by their search-space size over magnitude
+    # of entanglement, clustering goals by their shared variables.
+    lambda ctx: And.hook_heuristic(ctx, And.heur_conj_chain_vars),
+)
+
+
 class SolverABC(ABC):
     ctx        : Ctx
     vars       : tuple[Var, ...]
     goal       : Goal
     metrics    : Metrics
     steps_count: int
+    instrumentation: tuple[Callable[[Ctx], Ctx], ...]
     
     _step_tag_ctx: bool
     _skip_step_stats_timeseries: bool
     
-    def __init__(self: Self,
-                 ctx: Ctx,
-                 vars: tuple[Var, ...],
-                 goal: Goal,
-                 /,
-                 metrics: Metrics | None = None,
-                 # perf/data trade-offs
-                 step_tag_ctx: bool = False,
-                 skip_step_stats_timeseries: bool = True,
-                 **kwargs: Any
+    def __init__(
+        self: Self,
+        ctx: Ctx,
+        vars: tuple[Var, ...],
+        goal: Goal,
+        /,
+        metrics: Metrics | None = None,
+        instrumentation: tuple[Callable[[Ctx], Ctx], ...] = INSTRUMENTATION,
+        # perf/data trade-offs
+        step_tag_ctx: bool = False,
+        skip_step_stats_timeseries: bool = True,
+        **kwargs: Any
     ) -> None:
         self.ctx = ctx
         self.vars = vars
         self.goal = goal
         self.metrics = metrics if metrics else Metrics.Singleton()
         self.steps_count = 0
+        self.instrumentation = instrumentation
         self._step_tag_ctx = step_tag_ctx
         self._skip_step_stats_timeseries = skip_step_stats_timeseries
-        self.__pyata_solver_pre_init__()
+        for cb in instrumentation:
+            self.ctx = cb(self.ctx)
+        self.__pyata_pre_solver_init__()
 
     def instrument(self: Self, cb: Callable[[Ctx], Ctx]) -> None:
+        self.instrumentation = (*self.instrumentation, cb)
         self.ctx = cb(self.ctx)
 
     def hook_event(self: Self, key: Any, cb: HookEventCB[Any]) -> None:
@@ -74,7 +89,7 @@ class SolverABC(ABC):
                        ) -> None:
         self.instrument(lambda ctx: HooksBroadcasts.hook(ctx, key, cb))
     
-    def __pyata_solver_pre_init__(self: Self) -> None:
+    def __pyata_pre_solver_init__(self: Self) -> None:
         # Extend the context with constraints functionaality.
         self.ctx = Constraints.install(self.ctx)
         
@@ -126,7 +141,6 @@ class Solver(SolverABC, SolverRichReprCtxMixin):
     
     def __pyata_solver_init__(self: Self) -> None:
         super().__pyata_solver_init__()
-        # self.stream_iter = iter(self.goal(self.ctx))
         self.latest_solution_ctx = None
     
     @classmethod

@@ -114,10 +114,6 @@ ctx: Ctx = NoCtx
 # Randomized intratable factchecking order.
 ctx = FactsTable.FactsGoal.hook_facts(ctx,
       FactsTable.heur_facts_ord_rnd)
-# Order goals by their search-space size over magnitude of
-# entanglement, clustering goals by their shared variables.
-ctx = And.hook_heuristic(ctx,
-      And.heur_conj_chain_vars)
 
 # Let's define some explicit variables for special
 # crossword word shapes.
