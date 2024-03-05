@@ -15,7 +15,7 @@ import sympy          as SY
 __all__: list[str] = [
 
     # Core Types
-    'Ctx', 'NoCtx', 'Facet', 'Var', 'Reifier',
+    'Ctx', 'NoCtx', 'Facet', 'Var', 'Reifier', 'Arg',
 
     # Facet Convenience Types (ContextManager)
     'FacetBindable', 'BoundFacet',
@@ -266,3 +266,5 @@ class HookBroadcastCB[T](Protocol):
 Var = SY.Symbol
 
 type Reifier = Callable[[Any], Any]
+
+type Arg[T] = T | Var

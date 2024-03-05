@@ -26,7 +26,7 @@ from ..immutables import Map, Set
 
 
 __all__: list[str] = [
-    'GoalABC', 'Succeed', 'Fail', 'Eq', 'Goal'
+    'GoalABC', 'Succeed', 'Fail', 'Eq', 'Goal', 'And', 'Or'
 ]
 
 
@@ -45,10 +45,10 @@ class GoalABC(ABC, Goal, Named, CtxSelfRichReprable):
     def __init__(self: Self, *, name: str | None = None) -> None:
         if name is None:
             try:
-                self.name = self.__name__
+                self.name = self.__name__  # type: ignore
             except AttributeError:
                 try:
-                    self.name = self.__class__.__name__
+                    self.name = self.__class__.__name__  # type: ignore
                 except AttributeError as e:
                     raise TypeError(
                         f'Cannot infer name for {self!r}. '
@@ -137,7 +137,8 @@ class ConnectiveABC(GoalABC, Connective, ABC):
     RichReprDecor: type[RichReprable]
     
     def __init__(self: Self, goal: Goal, *g_or_c: Goal | Constraint,
-                 **kwargs: Any) -> None:
+                 **kwargs: Any
+    ) -> None:
         super().__init__(**kwargs)
         goals: list[Goal] = []
         constraints: list[Constraint] = []

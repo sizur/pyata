@@ -62,7 +62,12 @@ On MacOS you may need to use `gmake` instead of its ancient `make`.
   - with normalization (required for higher-order unification and optimized implementation synthesis)
 
 ### Longer-term
-- Even more advanced pruning can be done by introducing a stage running a simpler goal only considering entangled variables of connectives to identify dead branches earlier
+- Implement more advanced pruning can be done by introducing a stage running a simpler goal only considering entangled variables of connectives to identify dead branches earlier
+- Explore storing fact relations as fully auto-normalized id-value maps,
+  eliminating tradeoff between forward and backward inference chaining,
+  and naturally supporting hypothetical reasoning (new facts become a part of backtrackable context),
+  and enabling better heuristics through better visibility of relational attribute domains
+- Add support for ordered goal trait to use order constraints for binary search over ordered relations
 - Implement auto-parallelized base solver
 - Extend unification lattice with parametric lattice to reason about parametric types
 - Write WASM interpreter in Pyata

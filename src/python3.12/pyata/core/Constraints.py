@@ -348,18 +348,18 @@ class Notin(ConstraintVarsABC):
 
 
 class PositiveCardinalityProduct(ConstraintVarsABC):
-    vars: tuple[Var         , ...]
-    conj: tuple[GoalCtxSized, ...]
+    vars : tuple[Var         , ...]
+    goals: tuple[GoalCtxSized, ...]
 
-    def __init__(self: Self,
+    def __init__(self : Self,
                  vars : tuple[Var         , ...],
                  goals: tuple[GoalCtxSized, ...]
     ) -> None:
-        self.vars = vars
-        self.conj = goals
+        self.vars  = vars
+        self.goals = goals
     
     def __call__(self: Self, ctx: Ctx) -> Ctx:
-        size = prod([g.__ctx_len__(ctx) for g in self.conj])
+        size = prod([g.__ctx_len__(ctx) for g in self.goals])
         if size == 0:
             return Unification.Failed
         return ctx

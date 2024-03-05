@@ -11,7 +11,7 @@ __all__: list[str] = [
     'CtxSelfRichReprable', 'isCtxClsRichReprable',
     'isCtxSelfRichReprable', 'isRichReprable', 'CtxVarRichRepr',
     'Vared', 'Goal', 'GoalCtxSizedVared', 'GoalCtxSized', 'GoalVared',
-    'MaybeCtxSized', 'Progressable', 'Named',
+    'MaybeCtxSized', 'Progressable', 'Named', 'Arg',
     
     'FacetABC', 'FacetRichReprMixin', 'CtxRichRepr',
     
@@ -28,7 +28,7 @@ __all__: list[str] = [
     
     'Constraints', 'ConstraintVarsABC', 'Neq', 'Distinct',
     
-    'FactsTable',
+    'FactsTable', 'FreshRel',
     
     'Cel', 'Nnl', 'Map', 'MapMutation', 'Set', 'SetMutation',
     'cons_is_empty', 'cons_is_not_empty', 'cons_from_iterable',

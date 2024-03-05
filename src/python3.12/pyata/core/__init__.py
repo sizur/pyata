@@ -11,7 +11,7 @@ __all__: list[str] = [
     'isCtxSelfRichReprable', 'isRichReprable', 'Connective',
     'Vared', 'Relation', 'GoalCtxSizedVared', 'CtxSized',
     'RelationSized', 'GoalCtxSized', 'GoalVared', 'MaybeCtxSized',
-    'Reifier', 'Progressable', 'Named',
+    'Reifier', 'Progressable', 'Named', 'Arg',
     
     'FacetABC', 'FacetRichReprMixin', 'CtxRichRepr',
     'CtxClsRichReprable', 'CtxSelfRichReprable',
@@ -32,7 +32,9 @@ __all__: list[str] = [
     
     'SolverABC', 'Solver',
     
-    'FactsTable',
+    'FactsTable', 'FreshRel',
+    
+    'uint8', 'uint8_not', 'uint8_add', 'uint8_diff',
 ]
 
 from .Types       import ( Ctx, NoCtx, Facet, FacetBindable, BoundFacet    #
@@ -45,7 +47,8 @@ from .Types       import ( Ctx, NoCtx, Facet, FacetBindable, BoundFacet    #
                          , isCtxSelfRichReprable, isRichReprable, Var      #
                          , Connective, Relation, Vared, GoalCtxSizedVared  #
                          , CtxSized, RelationSized, GoalCtxSized, GoalVared
-                         , MaybeCtxSized, Reifier, Progressable, Named     )
+                         , MaybeCtxSized, Reifier, Progressable, Named     #
+                         , Arg                                             )
 from .Facets      import ( FacetABC, FacetRichReprMixin, CtxRichRepr       #
                          , HooksPipelines, HooksEvents, HooksBroadcasts    #
                          , HooksShortCircuit                               )
@@ -59,4 +62,5 @@ from .Goals       import ( Succeed, Fail, Eq, Goal, GoalABC, And, Or       )
 from .Constraints import ( Constraints, ConstraintVarsABC, Neq, Distinct   #
                          , Notin, PositiveCardinalityProduct               )
 from .Solvers     import   SolverABC, Solver
-from .Relations   import   FactsTable
+from .Relations   import   FactsTable, FreshRel
+from .BinPU       import ( uint8, uint8_not, uint8_add, uint8_diff         )

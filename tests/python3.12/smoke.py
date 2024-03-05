@@ -288,3 +288,34 @@ def test_iterable_unification():
                             [[0, 1], [3, [4, 5], 6], ...],
                             [[0, 1], [3, var2, ...], [7, 8]])
     assert ctx is not Unification.Failed
+
+
+def test_BinPU():
+    ctx = NoCtx
+    ctx = And.hook_heuristic(ctx, And.heur_conj_chain_vars)
+    ctx, (result, overflow) = Vars.fresh(ctx, int, 2)
+    
+    # uint8(Hex, Hex, Byte)
+    sols = [i for i in Solver(ctx, (result,),
+                              uint8(5, 3, result))]
+    assert sols == [(0x53,)]
+    assert 0x53 == 83
+    
+    # uint8_not(a: Byte, flipped: Byte)
+    sols = [i for i in Solver(ctx, (result,),
+                              uint8_not(83, result))]
+    assert sols == [(172,)]
+    
+    # uint8_add(a: Byte, b: Byte, sum: Byte, carry: Hex)
+    sols = [i for i in Solver(ctx, (result, overflow),
+                              uint8_add(83, 89, result, overflow))]
+    assert sols == [(172, 0)]
+    sols = [i for i in Solver(ctx, (result, overflow),
+                              uint8_add(172, 172, result, overflow))]
+    assert sols == [(88, 1)]
+    
+    # uint8_diff(minuend: Byte, subtrahend: Byte, diff: Byte, borrow: Hex)
+    sols = [i for i in Solver(ctx, (result, overflow),
+                              uint8_diff(172, 89, result, overflow))]
+    assert sols == [(83, 0)]
+    

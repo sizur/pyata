@@ -11,14 +11,14 @@ import numpy as np, rich, rich.repr, rich.pretty
 from .Constraints import Constraints, Notin
 from .Facets      import HooksBroadcasts, HookBroadcastCB, BroadcastKey, HookPipelineCB, HooksPipelines
 from .Goals       import GoalABC
-from .Types       import Ctx, Var, GoalCtxSizedVared, Stream, Relation
+from .Types       import Ctx, Var, GoalVared, GoalCtxSizedVared, Stream, Relation, Reifier
 from .Unification import Unification
-from .Vars        import Substitutions
+from .Vars        import Substitutions, Vars
 from ..config     import Settings
 
 
 __all__: list[str] = [
-    'FactsTable'
+    'FactsTable', 'FreshRel'
 ]
 
 
@@ -36,10 +36,10 @@ class RelationABC[*T](ABC, Relation[*T]):
             self.name = name
         else:
             try:
-                self.name = self.__name__
+                self.name = self.__name__  # type: ignore
             except AttributeError:
                 try:
-                    self.name = self.__class__.__name__
+                    self.name = self.__class__.__name__  # type: ignore
                 except AttributeError as e:
                     raise TypeError(
                         f'Cannot infer name for {self!r}. '
@@ -53,6 +53,7 @@ class FactsTable[A: np.dtype[Any], *T](RelationABC[*T], Sized):
     #       not affect already produced goals (since they are indemnepotent).
     arr_ver: int
     arr_ver_latest_copy: tuple[int, np.ndarray[ND2, A]] | None
+    is_static: bool
     
     class FactsGoal(GoalABC, GoalCtxSizedVared):
         # NOTE: Goals are idempotent, so optimized specializations
@@ -308,7 +309,9 @@ class FactsTable[A: np.dtype[Any], *T](RelationABC[*T], Sized):
 
     def __init__(self: Self,
                  arr: np.ndarray[ND2, A],
-                 name: str
+                 name: str,
+                 *,
+                 is_static: bool = False
     ) -> None:
         assert len(arr) > 0
         name = '/'.join((name, str(arr.shape[1])))
@@ -323,7 +326,14 @@ class FactsTable[A: np.dtype[Any], *T](RelationABC[*T], Sized):
         self.distribution = distrib
         self.arr_ver = 0
         self.arr_ver_latest_copy = None
+        self.is_static = is_static
+        if is_static:
+            self.__call__ = self.__static_call__
 
+    def __static_call__(self: Self, *args: *T) -> GoalCtxSizedVared:
+        return self.FactsGoal(self.arr, self.distribution, *args,
+                              name=self.name)
+    
     def __call__(self: Self, *args: *T) -> GoalCtxSizedVared:
         if self.arr_ver_latest_copy is None:
             self.arr_ver_latest_copy = (self.arr_ver, self.arr.copy())
@@ -331,15 +341,19 @@ class FactsTable[A: np.dtype[Any], *T](RelationABC[*T], Sized):
         if co_ver != self.arr_ver:
             self.arr_ver_latest_copy = (self.arr_ver, self.arr.copy())
             co_ver, co_arr = self.arr_ver_latest_copy
-        return self.FactsGoal(co_arr, self.distribution, *args, name=self.name)
+        return self.FactsGoal(co_arr, self.distribution, *args,
+                              name=self.name)
 
     def __len__(self: Self) -> int:
         return self.arr.shape[0]
+    
+    def arity(self: Self) -> int:
+        return self.arr.shape[1]
 
     def __rich_repr__(self: Self) -> rich.repr.Result:
         yield 'name', self.name
-        yield 'arity', self.arr.shape[1]
-        yield 'facts', self.arr.shape[0]
+        yield 'arity', self.arity()
+        yield 'facts', len(self)
 
     def get_facts(self: Self) -> Iterable[np.ndarray[ND1, A]]:
         for row in self.arr:
@@ -350,6 +364,61 @@ class FactsTable[A: np.dtype[Any], *T](RelationABC[*T], Sized):
         ctx: Ctx, data: np.ndarray[ND2, A]
     ) -> tuple[Ctx, np.ndarray[ND2, A]]:
         return ctx, np.random.permutation(data)
+
+
+class FreshRel[R: Relation[Any], *T](RelationABC[R, *T]):
+    """A higher-order relation providing fresh variables to a relation.
+    
+    Every argument to the argument relation will be a fresh variable.
+    All variables the argument relation depends on (captured by its closure)
+    should be provided after relation parameter during relational call
+    (goal construction) for correct `GoalVared` accounting.
+    
+    A fresh relation should not be considered separately.  It is used in
+    definitions of relations that require intermediate variables, often
+    in recursively defined relations.  Therefore the `T` type parameters
+    are provided by the relation argument types of the relation that defines
+    the fresh relation (one that instantiates this class).
+    
+    This is a partitioning barrier to optimizations that rely on
+    `GoalCtxSized`, even if argument relation is defined purely in terms of
+    `GoalCtxSized` goals.  This is because fresh variables and goal
+    construction of the argument relation are delayed until the `Stream` is
+    needed to enable recursion.  This prevents global `GoalCtxSized`
+    optimizations, making them into scoped ones, delimited by fresh relations.
+    This is also the reason why `GoalVared` trait of the `FreshGoal` cannot
+    know fresh variables below its scope.
+    """
+    reifier: tuple[Reifier, ...]
+    
+    class FreshGoal(GoalABC, GoalVared):
+        rel: R
+        vars: tuple[Var, ...]
+        reifier: tuple[Reifier, ...]
+        
+        def __init__(self: Self, reifier: tuple[Reifier, ...], rel: R, *args: *T, **kwargs: Any) -> None:
+            super().__init__(**kwargs)
+            self.rel = rel
+            self.vars = tuple(var for var in args if isinstance(var, Var))
+            self.reifier = reifier
+        
+        def __call__(self: Self, ctx: Ctx) -> Stream:
+            ctx, fresh_vars = Vars.fresh(ctx, self.reifier)
+            return self.rel(*fresh_vars)(ctx)
+
+    def __init__(self: Self,
+                 reifier: Reifier | tuple[Reifier, ...] | None = None,
+                 num: int | None = None
+    ) -> None:
+        if not isinstance(reifier, tuple):
+            reifier = (reifier,)     # type: ignore
+        if num is not None:
+            reifier = reifier * num  # type: ignore
+        assert isinstance(reifier, tuple) and not (reifier == ())
+        self.reifier = reifier
+    
+    def __call__(self: Self, rel: R, *args: *T) -> FreshGoal:
+        return self.FreshGoal(self.reifier, rel, *args)
 
 
 # # TODO: higher order relation
