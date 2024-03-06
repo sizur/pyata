@@ -292,19 +292,18 @@ def test_iterable_unification():
 
 def test_BinPU():
     ctx = NoCtx
-    ctx = And.hook_heuristic(ctx, And.heur_conj_chain_vars)
     ctx, (result, overflow) = Vars.fresh(ctx, int, 2)
     
     # uint8(Hex, Hex, Byte)
-    sols = [i for i in Solver(ctx, (result,),
-                              uint8(5, 3, result))]
-    assert sols == [(0x53,)]
+    sols = [i for (i,) in Solver(ctx, (result,),
+                                 uint8(5, 3, result))]
+    assert sols == [0x53]
     assert 0x53 == 83
     
     # uint8_not(a: Byte, flipped: Byte)
-    sols = [i for i in Solver(ctx, (result,),
+    sols = [i for (i,) in Solver(ctx, (result,),
                               uint8_not(83, result))]
-    assert sols == [(172,)]
+    assert sols == [172]
     
     # uint8_add(a: Byte, b: Byte, sum: Byte, carry: Hex)
     sols = [i for i in Solver(ctx, (result, overflow),
