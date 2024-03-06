@@ -17,7 +17,8 @@ __all__: list[str] = [
     'CtxClsRichReprable', 'CtxSelfRichReprable',
     
     'HooksPipelines', 'HooksEvents', 'HooksBroadcasts', 'HooksShortCircuit',
-                          
+    'HooksEffectfulCBs', 'Hypotheticals',
+
     'Metrics',
     
     'Var', 'VarsReifiers', 'Substitutions', 'Vars', 'ReifiersAssumps', 'SymAssumps',
@@ -51,7 +52,8 @@ from .Types       import ( Ctx, NoCtx, Facet, FacetBindable, BoundFacet    #
                          , Arg                                             )
 from .Facets      import ( FacetABC, FacetRichReprMixin, CtxRichRepr       #
                          , HooksPipelines, HooksEvents, HooksBroadcasts    #
-                         , HooksShortCircuit                               )
+                         , HooksShortCircuit, Hypotheticals                #
+                         , HooksEffectfulCBs                               )
 from .Metrics     import   Metrics
 from .Vars        import ( Var, __, Vars, VarsReifiers, Substitutions      #
                          , ReifiersAssumps, SymAssumps, CtxVarRichRepr     #

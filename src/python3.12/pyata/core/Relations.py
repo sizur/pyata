@@ -4,12 +4,14 @@
 from __future__ import annotations
 from abc import ABC
 from collections.abc import Sized
+from functools import cache
 from typing import Any, Iterable, Self, cast
 
 import numpy as np, rich, rich.repr, rich.pretty
 
 from .Constraints import Constraints, Notin
-from .Facets      import HooksBroadcasts, HookBroadcastCB, BroadcastKey, HookPipelineCB, HooksPipelines
+from .Facets      import (HooksBroadcasts, HookBroadcastCB, BroadcastKey,
+                          HookPipelineCB, HooksPipelines, Hypotheticals )
 from .Goals       import GoalABC
 from .Types       import Ctx, Var, GoalVared, GoalCtxSizedVared, Stream, Relation, Reifier
 from .Unification import Unification
@@ -98,6 +100,7 @@ class FactsTable[A: np.dtype[Any], *T](RelationABC[*T], Sized):
                     # we determined args[i] is a Var, so it is safe to cast
                     {args[i]: distribution[i].copy() for i in self.free_ixs})
         
+        @cache
         def _filtered(self: Self, ctx: Ctx
         ) -> tuple[
             Ctx,                      # context
@@ -151,15 +154,13 @@ class FactsTable[A: np.dtype[Any], *T](RelationABC[*T], Sized):
                         ctx, var, notin, notins[var])
                     flt_dst[var] = {val: self.distribution[var][val]}
                     mask &= (self.arr[:, fix] == val)
-                else:
+                elif not Hypotheticals.is_hypothetical(ctx):
                     # We look-ahead if any possible values are unifiable,
                     # and if not, we mask failing facts, expand notin, and
                     # filter the distribution.
                     walked_var = val
                     notin_adds: list[A] = []
-                    ctx_ahead = HooksPipelines.clear(
-                        # Clear all substitution hooks for lookahead unification
-                        ctx, Substitutions.hook_substitution)
+                    ctx_ahead = Hypotheticals.get_hypothetical(ctx)
                     for val_ in domain:
                         ctx_ahead_ = Unification.unify(
                             ctx_ahead, walked_var, val_)
@@ -260,7 +261,8 @@ class FactsTable[A: np.dtype[Any], *T](RelationABC[*T], Sized):
         
         def __len__(self: Self) -> int:
             return len(self.arr)
-        
+
+        @cache
         def __ctx_len__(self: Self, ctx: Ctx) -> int:
             if self._short_circuit_fail:
                 return 0

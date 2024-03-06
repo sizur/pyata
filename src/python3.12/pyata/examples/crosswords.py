@@ -17,7 +17,7 @@ import rich.console, rich.columns, rich.box, rich.live, rich.logging, \
 from pyata.core import (
     Ctx, NoCtx, And, Or, Vars, Substitutions, Var,
     Solver, CtxRichRepr, FactsTable, GoalCtxSizedVared,
-    VarsReifiers, Goal, Notin, HooksBroadcasts, BroadcastKey
+    VarsReifiers
 )
 
 APP = typer.Typer(name='crossword_specific', pretty_exceptions_enable=False)
@@ -121,8 +121,8 @@ ctx = FactsTable.FactsGoal.hook_facts(ctx,
  _U,_V,_W,_X,_Y,_Z) = (
      Var(f'_{chr(i)}')for i in range(ord('A'), 1 + ord('Z')))
 (_a,_b,_c,_d,_e,_f,_g,_h,_i,_j,_k,_l,_m,_n,_o,_p,_q,_r,_s,_t,
- _u,_v,_w,_x,_y) = (
-     Var(f'_{chr(i)}') for i in range(ord('a'), 1 + ord('y')))
+ _u,_v,_w,_x,_y,_z) = (
+     Var(f'_{chr(i)}') for i in range(ord('a'), 1 + ord('z')))
 
 
 MIN_WORD_LEN  = 2
@@ -142,20 +142,29 @@ CROSSWORD: list[list[Var | int | None | str]] = [
     [_C ,_J ,_I ,_L ,_M ,_O , _ ,_V ,_W , _ ,_g , _ , _ ,_m ,_n ],
     [_B , _ , _ , _ , _ ,_P ,_b , _ ,_X , _ ,_h , _ ,_s , _ ,_o ],
     [_A , _ , _ ,_S ,_R ,_Q ,_a ,_Z ,_Y , _ ,_i ,_j ,_r ,_q ,_p ],
-    [ 0 , 0 , 0 ,_w ,_u , 0 , 0 ,_t ,_x , 0 ,_v , 0 ,_y , 0 , 0 ],
+    [ 0 , 0 , 0 ,_w ,_u , 0 ,_z ,_t ,_x , 0 ,_v , 0 ,_y , 0 , 0 ],
 ]
 SPECIALS: list[list[Var]] = [
-    
-    # Any non-standard shapes are here
-    
     [_A,_B,_C,_D,_E,_F,_G,_H,_I,_J],  # P
     [_K,_L,_M,_N,_O,_P,_Q,_R,_S],     # y
     [_T,_U,_V,_W,_X,_Y,_Z,_a,_b],     # a
     [_c,_d,_e,_f,_g,_h,_i,_j],        # t
     [_k,_l,_m,_n,_o,_p,_q,_r,_s],     # a
-    # [_G,_K,_M,_P,_a,_t],                # (diagonals)
-    # [_u,_Q,_b,_V],
-    # [_v,_j,_s,_m],
+]
+DIAGONALS: list[list[Var]] = [
+    [_G,_K,_M,_P,_a,_t],
+    [_u,_Q,_b,_V],
+    [_v,_j,_s,_m],
+    [_O,_b,_Z,_x],
+    [_F,_H,_L],
+    [_B,_J,_H],
+    [_w,_R,_P],
+    [_T,_V,_X],
+    [_z,_Z,_X],
+    [_w,_c,_f],
+    [_h,_j,_y],
+    [_k,_m,_o],
+    [_y,_q,_o],
 ]
 
 
@@ -196,7 +205,7 @@ def contig_grps(lst: list[Var | Literal[None]]) -> list[list[Var]]:
 WORDS: list[list[Var]] = list(chain(*(
     [contig_grps(row) for row in CROSSWORD] +
     [contig_grps(col) for col in zip(*CROSSWORD)]
-))) # + SPECIALS
+))) + DIAGONALS
 
 ##############################################################################
 # Main
@@ -435,7 +444,7 @@ class CrosswordSolver(Solver):
                         vertical='middle')
         tab.add_column(width=60, no_wrap=True, style='white',
                     justify='left')
-        n, xys = 0, len(WORDS) # - len(SPECIALS)
+        n, xys = 0, len(WORDS) - len(DIAGONALS)
         for word in words:
             rev = ' '
             n += 1
@@ -457,10 +466,11 @@ class CrosswordSolver(Solver):
                 args = (word, '\n'.join(text))
             if n == 1 + xys:
                 tab.add_row(*((None,)*(len(args)-1)),
-                    "Specials:",
+                    "Diagonals:",
                     style='bright_white bold italic underline')
 
-            if SPECIALS and n - xys == 1 + (int(time.time()) % len(SPECIALS)):
+            # TODO: decide if we should reintroduce specials or not
+            if False: # SPECIALS and n - xys == 1 + (int(time.time()) % len(SPECIALS)):
                 tab.add_row(*args,
                             style='bright_cyan bold')
             else:

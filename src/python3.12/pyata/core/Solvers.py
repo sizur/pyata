@@ -10,7 +10,7 @@ import rich.pretty, rich.repr
 
 from .Constraints import Constraints
 from .Facets import FacetABC, FacetRichReprMixin, CtxRichRepr, \
-    HooksEvents, HooksPipelines, HooksBroadcasts
+    HooksEvents, HooksPipelines, HooksBroadcasts, HooksEffectfulCBs
 from .Goals import And
 from .Metrics import Metrics
 from .Types  import Ctx, NoCtx, Var, Goal, HookEventCB, HookPipelineCB, \
@@ -117,6 +117,7 @@ class SolverABC(ABC):
                 self.steps_count = subs_counter(1)
                 self.ctx = ctx
                 return ctx, data
+        self.ctx = HooksEffectfulCBs.add(self.ctx, subs_cb)
         self.ctx = Substitutions.hook_substitution(
             self.ctx, subs_cb)
         self.__pyata_solver_init__()

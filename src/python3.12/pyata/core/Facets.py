@@ -4,7 +4,7 @@
 from __future__  import annotations
 from abc         import ABC, abstractmethod
 from collections import abc as AB
-from typing      import ( Any, Callable, ClassVar, Final, Iterable, Mapping #
+from typing      import ( Any, Callable, ClassVar, Final, Iterable, Literal, Mapping, NoReturn #
                         , Self, cast                                        )
 
 import rich.repr   as RR
@@ -20,7 +20,8 @@ from ..config     import   Settings
 
 __all__: list[str] = [
     'FacetABC'   , 'FacetRichReprMixin', 'CtxRichRepr'   , 'HooksABC',
-    'HooksEvents', 'HooksBroadcasts'   , 'HooksPipelines', 'HooksShortCircuit'
+    'HooksEvents', 'HooksBroadcasts'   , 'HooksPipelines', 'HooksShortCircuit',
+    'HooksEffectfulCBs', 'Hypotheticals'
 ]
 
 
@@ -227,6 +228,31 @@ class CtxRichRepr:
 CtxRichRepr.__name__ = 'Ctx'
 
 
+# TODO: add CtxClsRichRepr to Indirections
+class Indirections(FacetABC[Callable[..., Any], Callable[..., Any]]):
+    """Contextual function overrides."""
+    No: ClassVar[Callable[..., Any]] = lambda: NoReturn
+    default: ClassVar[Callable[..., Any]] = No
+    
+    @classmethod
+    def invoke[**P](cls: type[Self], ctx: Ctx, fun: Callable[P, Any],
+                    *args: P.args, **kwargs: P.kwargs
+    ) -> Any:
+        indirection = cls.get(ctx, fun)
+        if indirection is cls.No:
+            return fun(*args, **kwargs)
+        return indirection(*args, **kwargs)
+
+
+class HooksEffectfulCBs(FacetABC[HookCB[Any], bool]):
+    """Facet for marking callbacks as effectful, to skip during hypotheticals."""
+    default: ClassVar[bool] = False
+
+    @classmethod
+    def add(cls: type[Self], ctx: Ctx, cb: HookCB[Any]) -> Ctx:
+        return cls.set(ctx, cb, True)
+
+
 class HooksABC[H: HookCB[Any]](
     FacetABC[AB.Hashable, Cel[H]],
     FacetRichReprMixin[AB.Hashable],
@@ -235,9 +261,17 @@ class HooksABC[H: HookCB[Any]](
     default: ClassVar[Cel[HookCB[Any]]] = ()
     
     @classmethod
-    def hook(cls: type[Self], ctx: Ctx, key: Any, cb: H) -> Ctx:
+    def hook(cls: type[Self], ctx: Ctx, key: Any, cb: H,
+             *, effectful: bool = False
+    ) -> Ctx:
         """Hook a callback to a key in context."""
+        if effectful:
+            ctx = HooksEffectfulCBs.add(ctx, cb)
         return cls.set(ctx, key, (cb, cls.get(ctx, key)))
+    
+    @classmethod
+    def hypothetical(cls: type[Self], ctx: Ctx) -> Ctx:
+        return Indirections.set(ctx, cls.run_all, cls.run_pure)
 
     @classmethod
     @abstractmethod
@@ -245,6 +279,18 @@ class HooksABC[H: HookCB[Any]](
             ) -> Ctx | tuple[Ctx, Any]:
         raise NotImplementedError
 
+    @classmethod
+    @abstractmethod
+    def run_all(cls: type[Self], ctx: Ctx, key: Any, arg: Any
+                ) -> Ctx | tuple[Ctx, Any]:
+        raise NotImplementedError
+    
+    @classmethod
+    @abstractmethod
+    def run_pure(cls: type[Self], ctx: Ctx, key: Any, arg: Any
+                 ) -> Ctx | tuple[Ctx, Any]:
+        raise NotImplementedError
+    
     @classmethod
     def clear(cls: type[Self], ctx: Ctx, key: Any) -> Ctx:
         """Clear all callbacks from a key in context."""
@@ -319,7 +365,7 @@ class HooksABC[H: HookCB[Any]](
                 val_ = val.__qualname__.replace('<locals>.', '')
             except AttributeError:
                 try:
-                    val_ = val.__name__
+                    val_ = val.__name__  # type: ignore
                 except AttributeError:
                     val_ = val
             vals.append(val_)
@@ -337,8 +383,27 @@ class HooksShortCircuit(Exception):
 class HooksEvents[T](HooksABC[HookEventCB[T]]):
     @classmethod
     def run(cls: type[Self], ctx: Ctx, key: Any, arg: Any) -> Ctx:
+        """Run event callbacks in context."""
+        return Indirections.invoke(ctx, cls.run_all, ctx, key, arg)
+    
+    @classmethod
+    def run_all(cls: type[Self], ctx: Ctx, key: Any, arg: Any) -> Ctx:
         cb: HookEventCB[Any]
         for cb in cons_to_iterable(cls.get(ctx, key)):
+            try:
+                ctx = cb(ctx, arg)
+            except HooksShortCircuit as e:
+                if e.ctx is not None:
+                    ctx = e.ctx
+                break
+        return ctx
+
+    @classmethod
+    def run_pure(cls: type[Self], ctx: Ctx, key: Any, arg: Any) -> Ctx:
+        cb: HookEventCB[Any]
+        for cb in cons_to_iterable(cls.get(ctx, key)):
+            if HooksEffectfulCBs.get(ctx, cb):
+                continue
             try:
                 ctx = cb(ctx, arg)
             except HooksShortCircuit as e:
@@ -352,9 +417,30 @@ class HooksBroadcasts[T](HooksABC[HookBroadcastCB[T]]):
     @classmethod
     def run(cls: type[Self], ctx: Ctx, key: BroadcastKey, arg: T) -> Ctx:
         """Broadcast arg to key callbacks in context."""
+        return Indirections.invoke(ctx, cls.run_all, ctx, key, arg)
+    
+    @classmethod
+    def run_all(cls: type[Self], ctx: Ctx, key: BroadcastKey, arg: T) -> Ctx:
+        """Broadcast arg to key callbacks in context."""
         k: Any
         for k in (key[:i] for i in range(len(key), 0, -1)):
             for bcb in cons_to_iterable(cls.get(ctx, k)):
+                try:
+                    ctx = bcb(ctx, key, arg)
+                except HooksShortCircuit as e:
+                    if e.ctx is not None:
+                        ctx = e.ctx
+                    break
+        return ctx
+
+    @classmethod
+    def run_pure(cls: type[Self], ctx: Ctx, key: BroadcastKey, arg: T) -> Ctx:
+        """Broadcast arg to key callbacks in context."""
+        k: Any
+        for k in (key[:i] for i in range(len(key), 0, -1)):
+            for bcb in cons_to_iterable(cls.get(ctx, k)):
+                if HooksEffectfulCBs.get(ctx, bcb):
+                    continue
                 try:
                     ctx = bcb(ctx, key, arg)
                 except HooksShortCircuit as e:
@@ -367,6 +453,11 @@ class HooksBroadcasts[T](HooksABC[HookBroadcastCB[T]]):
 class HooksPipelines[T](HooksABC[HookPipelineCB[T]]):
     @classmethod
     def run(cls: type[Self], ctx: Ctx, key: Any, arg: T) -> tuple[Ctx, T]:
+        """Pipeline arg through key callbacks in context."""
+        return Indirections.invoke(ctx, cls.run_all, ctx, key, arg)
+    
+    @classmethod
+    def run_all(cls: type[Self], ctx: Ctx, key: Any, arg: T) -> tuple[Ctx, T]:
         """Pipeline arg through key callbacks in context."""
         cb: HookPipelineCB[T]
         for cb in cons_to_iterable(cls.get(ctx, key)):
@@ -381,3 +472,43 @@ class HooksPipelines[T](HooksABC[HookPipelineCB[T]]):
                     raise RuntimeError(f"Invalid value: {e.val}") from e
                 break
         return ctx, arg
+
+    @classmethod
+    def run_pure(cls: type[Self], ctx: Ctx, key: Any, arg: T) -> tuple[Ctx, T]:
+        """Pipeline arg through key callbacks in context."""
+        cb: HookPipelineCB[T]
+        for cb in cons_to_iterable(cls.get(ctx, key)):
+            if HooksEffectfulCBs.get(ctx, cb):
+                continue
+            try:
+                ctx, arg = cb(ctx, arg)
+            except HooksShortCircuit as e:
+                if e.val is not None and isinstance(e.val, type(arg)):
+                    arg = e.val
+                    if e.ctx is not None:
+                        ctx = e.ctx
+                else:
+                    raise RuntimeError(f"Invalid value: {e.val}") from e
+                break
+        return ctx, arg
+
+
+type HYPOTHETICAL_T = Literal["hypothetical"]
+HYPOTHETICAL: Final[HYPOTHETICAL_T] = "hypothetical"
+
+class Hypotheticals(FacetABC[HYPOTHETICAL_T, bool]):
+    default: ClassVar[bool] = False
+    
+    @classmethod
+    def is_hypothetical(cls: type[Self], ctx: Ctx) -> bool:
+        return cls.get(ctx, HYPOTHETICAL)
+
+    @classmethod
+    def get_hypothetical(cls: type[Self], ctx: Ctx) -> Ctx:
+        """Hypothetical context, skipping effectful hooks."""
+        if cls.is_hypothetical(ctx):
+            return ctx
+        ctx = cls.set(ctx, HYPOTHETICAL, True)
+        for hooks in (HooksEvents, HooksBroadcasts, HooksPipelines):
+            ctx = hooks.hypothetical(ctx)
+        return ctx

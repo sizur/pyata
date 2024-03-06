@@ -13,9 +13,10 @@ __all__: list[str] = [
     'Vared', 'Goal', 'GoalCtxSizedVared', 'GoalCtxSized', 'GoalVared',
     'MaybeCtxSized', 'Progressable', 'Named', 'Arg',
     
-    'FacetABC', 'FacetRichReprMixin', 'CtxRichRepr',
+    'FacetABC', 'FacetRichReprMixin', 'CtxRichRepr', 'Hypotheticals',
     
     'HooksPipelines', 'HooksEvents', 'HooksBroadcasts', 'HooksShortCircuit',
+    'HooksEffectfulCBs',
                           
     'Metrics',
     
