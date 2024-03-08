@@ -7,6 +7,7 @@ Pyata [ˈpʲjɑtɑ] is a general logic solver (or symbolic rule-based inference 
 ## Updates
 
 - 2024-02-28: much better conjunction search space prunning by the newly implemented `PositiveCardinalityProduct` constraint
+- 2024-03-08: major heuristics improvements finding solution in about a minute within search space of 8.50 x 10¹³⁵
 
 ## Features
 
@@ -54,6 +55,7 @@ On MacOS you may need to use `gmake` instead of its ancient `make`.
 - Abstract and extend FactsTable for additional support of [Polars](https://pola.rs/)
 - Add extensive test harness
 - Add user and developer documentation
+- Add DCG for Datalog/Prolog for existing knowledgebase ingestion
 
 ### Short-term Optional
 - Pure relational arithmetic (good for problems valuing unconstrained pure relational aspect above performance)
@@ -62,7 +64,7 @@ On MacOS you may need to use `gmake` instead of its ancient `make`.
   - with normalization (required for higher-order unification and optimized implementation synthesis)
 
 ### Longer-term
-- Implement more advanced pruning can be done by introducing a stage running a simpler goal only considering entangled variables of connectives to identify dead branches earlier
+- [Done] ~~Implement more advanced pruning can be done by introducing a stage running a simpler goal only considering entangled variables of connectives to identify dead branches earlier~~
 - Explore storing fact relations as fully auto-normalized id-value maps,
   eliminating tradeoff between forward and backward inference chaining,
   and naturally supporting hypothetical reasoning (new facts become a part of backtrackable context),
