@@ -13,7 +13,8 @@ import rich.pretty as RY
 from  .Types      import ( Ctx, Facet, FacetRichReprable, FacetKeyOrd  #
                          , RichReprable, HookBroadcastCB, HookEventCB  #
                          , HookPipelineCB, BroadcastKey,  HookCB       #
-                         , isCtxClsRichReprable, isCtxSelfRichReprable )
+                         , isCtxClsRichReprable, isCtxSelfRichReprable #
+                         , CtxFunction, CtxInstallable                 )
 from ..immutables import   Map, MapMutation, Cel, cons_to_iterable
 from ..config     import   Settings
 
@@ -21,7 +22,8 @@ from ..config     import   Settings
 __all__: list[str] = [
     'FacetABC'   , 'FacetRichReprMixin', 'CtxRichRepr'   , 'HooksABC',
     'HooksEvents', 'HooksBroadcasts'   , 'HooksPipelines', 'HooksShortCircuit',
-    'HooksEffectfulCBs', 'Hypotheticals'
+    'HooksEffectfulCBs', 'Installations', 'Hypotheticals', 'Effemore', 'Cache',
+    'Installations'
 ]
 
 
@@ -72,6 +74,17 @@ class FacetABC[K: AB.Hashable, V: AB.Hashable](
             return ctx
         
         @classmethod
+        def delete(cls: type[Self], ctx: Ctx, key: K) -> Ctx:
+            """Delete a `key` from a `Facet` of a `Context`."""
+            facet = cls.get_whole(ctx)
+            ctx = ctx.set(cls, facet.delete(key))
+            all_facet_key = (Facet, FacetABC.delete)
+            cls_facet_key = (cls  ,      cls.delete)
+            ctx = HooksBroadcasts.run(ctx, all_facet_key, key)
+            ctx = HooksBroadcasts.run(ctx, cls_facet_key, key)
+            return ctx
+        
+        @classmethod
         def update(cls: type[Self], ctx: Ctx, updates: Mapping[K, V]) -> Ctx:
             """Update facet in Ctx."""
             with cls.get_whole(ctx).mutate() as mutable:
@@ -112,6 +125,11 @@ class FacetABC[K: AB.Hashable, V: AB.Hashable](
         def set(cls: type[Self], ctx: Ctx, key: K, val: V) -> Ctx:
             """Set value in a `Facet` of a `Context`."""
             return ctx.set(cls, cls.get_whole(ctx).set(key, val))
+        
+        @classmethod
+        def delete(cls: type[Self], ctx: Ctx, key: K) -> Ctx:
+            """Delete a `key` from a `Facet` of a `Context`."""
+            return ctx.set(cls, cls.get_whole(ctx).delete(key))
         
         @classmethod
         def update(cls: type[Self], ctx: Ctx, updates: Mapping[K, V]) -> Ctx:
@@ -380,6 +398,7 @@ class HooksShortCircuit(Exception):
         self.val: Any | None = val
 
 
+# TODO: decide if indirections are actually necessary here or not.
 class HooksEvents[T](HooksABC[HookEventCB[T]]):
     @classmethod
     def run(cls: type[Self], ctx: Ctx, key: Any, arg: Any) -> Ctx:
@@ -411,6 +430,9 @@ class HooksEvents[T](HooksABC[HookEventCB[T]]):
                     ctx = e.ctx
                 break
         return ctx
+    
+    # Override indirections to run_all, for now.
+    run = run_all
 
 
 class HooksBroadcasts[T](HooksABC[HookBroadcastCB[T]]):
@@ -448,6 +470,9 @@ class HooksBroadcasts[T](HooksABC[HookBroadcastCB[T]]):
                         ctx = e.ctx
                     break
         return ctx
+    
+    # Override indirections to run_all, for now.
+    run = run_all
 
 
 class HooksPipelines[T](HooksABC[HookPipelineCB[T]]):
@@ -492,6 +517,29 @@ class HooksPipelines[T](HooksABC[HookPipelineCB[T]]):
                 break
         return ctx, arg
 
+    # Override indirections to run_all, for now.
+    run = run_all
+
+
+type INSTALLATIONS_T = Literal["installations"]
+INSTALLATIONS: Final[INSTALLATIONS_T] = "installations"
+
+class Installations(FacetABC[INSTALLATIONS_T, Cel[CtxInstallable]]):
+    default: ClassVar[Cel[CtxInstallable]] = ()
+
+    @classmethod
+    def install(cls: type[Self], ctx: Ctx, installable: CtxInstallable) -> Ctx:
+        if installable in cls.get_installations(ctx):
+            raise RuntimeError(f"Already installed: {installable}")
+        ctx = installable.__ctx_install__(ctx)
+        return cls.set(ctx, INSTALLATIONS, (
+            installable, cls.get(ctx, INSTALLATIONS)))
+
+    @classmethod
+    def get_installations(cls: type[Self], ctx: Ctx
+                          ) -> Iterable[CtxInstallable]:
+        return cons_to_iterable(cls.get(ctx, INSTALLATIONS))
+
 
 type HYPOTHETICAL_T = Literal["hypothetical"]
 HYPOTHETICAL: Final[HYPOTHETICAL_T] = "hypothetical"
@@ -512,3 +560,92 @@ class Hypotheticals(FacetABC[HYPOTHETICAL_T, bool]):
         for hooks in (HooksEvents, HooksBroadcasts, HooksPipelines):
             ctx = hooks.hypothetical(ctx)
         return ctx
+
+
+class Effemore(FacetABC[AB.Hashable, int]):
+    """Like a semaphore, but for contextually effectful operations."""
+    default: ClassVar[int] = 1
+
+    @classmethod
+    def inc(cls: type[Self], ctx: Ctx, key: AB.Hashable) -> Ctx:
+        return cls.set(ctx, key, cls.get(ctx, key) + 1)
+
+    @classmethod
+    def dec(cls: type[Self], ctx: Ctx, key: AB.Hashable) -> Ctx:
+        return cls.set(ctx, key, cls.get(ctx, key) - 1)
+    
+    @classmethod
+    def guard(cls: type[Self], ctx: Ctx, key: AB.Hashable) -> tuple[Ctx, bool]:
+        if cls.get(ctx, key) > 0:
+            ctx = cls.dec(ctx, key)
+            return ctx, True
+        return ctx, False
+
+
+class Cache(FacetABC[AB.Hashable, tuple[Any, ...] | None]):
+    """Contextual cache.
+    
+    Internally, values are wrapped in tuples to distinguish between default
+    None representing key not having been cached, and a cached value of None;
+    and to support context persistence.
+    """
+    default: ClassVar[Any] = None
+
+    @classmethod
+    def is_cached(cls: type[Self], ctx: Ctx, key: AB.Hashable) -> bool:
+        return cls.get(ctx, key) is not None
+    
+    @classmethod
+    def invoke_and_store[**P, R](cls: type[Self], ctx: Ctx,
+        fun: Callable[P, R], *args: P.args, **kwargs: P.kwargs
+    ) -> tuple[Ctx, R]:
+        """Invoke a function with args and cache the result."""
+        ret = fun(*args, **kwargs)
+        return (cls.set(ctx, (fun, args, kwargs), (ret,)), ret)
+    
+    @classmethod
+    def cached_or_invoke[**P, R](cls: type[Self], ctx: Ctx,
+        fun: Callable[P, R], *args: P.args, **kwargs: P.kwargs
+    ) -> tuple[Ctx, R]:
+        """Return cached result or invoke function and cache result.
+        
+        Note: `CtxFunction`s should not use this interface, but instead
+        `ctx_cached_or_invoke` to exclude the immutable context from the
+        cache key, unless cahcing only for the original context is desired.
+        """
+        cached = cls.get(ctx, (fun, args, kwargs))
+        if cached is not None:
+            return ctx, cast(R, cached[0])
+        return cls.invoke_and_store(ctx, fun, *args, **kwargs)
+
+    @classmethod
+    def ctx_invoke_and_store[**P, *R](cls: type[Self], ctx: Ctx,
+                                     fun: CtxFunction[P, *R],
+                                     *args: P.args, **kwargs: P.kwargs
+    ) -> tuple[Ctx, *R]:
+        """Invoke contextual function, exclude ctx from cache."""
+        ret: tuple[Ctx, *R]
+        ret = fun(ctx, *args, **kwargs)
+        res: tuple[*R]
+        ctx, res = ret[0], ret[1:]
+        return (cls.set(ctx, (fun, args, kwargs), res), *res)
+    
+    @classmethod
+    def ctx_cached_or_invoke[**P, *R](cls: type[Self], ctx: Ctx,
+                                     fun: CtxFunction[P, *R],
+                                     *args: P.args, **kwargs: P.kwargs
+    ) -> tuple[Ctx, *R]:
+        """Return cached result or invoke contextual function and cache result.
+        
+        This is required for contextual functions to be cached for derived
+        contexts.  Otherwize, since the context would be part of the cache
+        key, the invocation would be cached only for the original context,
+        due to immutability of contexts.
+        """
+        cached = cls.get(ctx, (fun, args, kwargs))
+        if cached is not None:
+            assert isinstance(cached, tuple)
+            return (ctx, *cast(tuple[*R], cached))
+        return cls.ctx_invoke_and_store(
+            ctx, fun,  # pyright: ignore[reportArgumentType]
+            *args, **kwargs)

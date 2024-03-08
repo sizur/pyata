@@ -11,12 +11,13 @@ __all__: list[str] = [
     'CtxSelfRichReprable', 'isCtxClsRichReprable',
     'isCtxSelfRichReprable', 'isRichReprable', 'CtxVarRichRepr',
     'Vared', 'Goal', 'GoalCtxSizedVared', 'GoalCtxSized', 'GoalVared',
-    'MaybeCtxSized', 'Progressable', 'Named', 'Arg',
+    'MaybeCtxSized', 'Progressable', 'Named', 'Arg', 'CtxInstallable',
+    'CtxConsumer', 'CtxFunction', 'CtxMutation',
     
-    'FacetABC', 'FacetRichReprMixin', 'CtxRichRepr', 'Hypotheticals',
+    'FacetABC', 'FacetRichReprMixin', 'CtxRichRepr',
     
     'HooksPipelines', 'HooksEvents', 'HooksBroadcasts', 'HooksShortCircuit',
-    'HooksEffectfulCBs',
+    'HooksEffectfulCBs', 'Hypotheticals', 'Effemore', 'Cache', 'Installations',
                           
     'Metrics',
     
@@ -26,6 +27,11 @@ __all__: list[str] = [
     'Unification', 'UnificationIterables', 'UnificationIterablesTypeGuard',
     
     'Eq', 'Fail', 'Succeed', 'GoalABC', 'And', 'Or',
+    
+    'HeurConjChainVars', 'HeurConjCardinality', 'HeurConjRelevance',
+    'HeurFactsOrdRnd',
+    'ConjunctiveHeuristic', 'DisjunctiveHeuristic',
+    'discern_goals', 'discriminate_goals',
     
     'Constraints', 'ConstraintVarsABC', 'Neq', 'Distinct',
     

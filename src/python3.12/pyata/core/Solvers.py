@@ -3,18 +3,21 @@
 
 from __future__ import annotations
 from abc import ABC
-from typing import Any, Callable, ClassVar, Final, Iterator, Self
+from typing import Any, ClassVar, Final, Iterable, Iterator, Self
 
 import rich
 import rich.pretty, rich.repr
 
 from .Constraints import Constraints
 from .Facets import FacetABC, FacetRichReprMixin, CtxRichRepr, \
-    HooksEvents, HooksPipelines, HooksBroadcasts, HooksEffectfulCBs
-from .Goals import And
+    HooksEvents, HooksPipelines, HooksBroadcasts, HooksEffectfulCBs, \
+    Installations, Hypotheticals
+from .Goals import HeurConjChainVars, HeurConjCardinality
 from .Metrics import Metrics
+from .Relations import HeurConjRelevance, HeurFactsOrdRnd
 from .Types  import Ctx, NoCtx, Var, Goal, HookEventCB, HookPipelineCB, \
-    HookBroadcastCB, RichReprable, CtxSized, BroadcastKey
+    HookBroadcastCB, RichReprable, CtxSized, BroadcastKey, CtxInstallable, \
+    CtxMutation
 from .Vars   import Vars, SymAssumps, Substitutions
 
 
@@ -31,10 +34,11 @@ class SolverRichReprCtxMixin(ABC, RichReprable):
         yield CtxRichRepr(self.ctx)
 
 
-INSTRUMENTATION: Final[tuple[Callable[[Ctx], Ctx], ...]] = (
-    # Order conjunction goals by their search-space size over magnitude
-    # of entanglement, clustering goals by their shared variables.
-    lambda ctx: And.hook_heuristic(ctx, And.heur_conj_chain_vars),
+DEFAULT_EXTENSIONS: Final[tuple[CtxInstallable, ...]] = (
+    HeurFactsOrdRnd(),
+    HeurConjCardinality(),
+    HeurConjRelevance(),
+    HeurConjChainVars(),
 )
 
 
@@ -44,7 +48,8 @@ class SolverABC(ABC):
     goal       : Goal
     metrics    : Metrics
     steps_count: int
-    instrumentation: tuple[Callable[[Ctx], Ctx], ...]
+    extensions : tuple[CtxInstallable, ...]
+    instruments: set[CtxMutation]
     
     _step_tag_ctx: bool
     _skip_step_stats_timeseries: bool
@@ -56,7 +61,7 @@ class SolverABC(ABC):
         goal: Goal,
         /,
         metrics: Metrics | None = None,
-        instrumentation: tuple[Callable[[Ctx], Ctx], ...] = INSTRUMENTATION,
+        extensions: Iterable[CtxInstallable] = DEFAULT_EXTENSIONS,
         # perf/data trade-offs
         step_tag_ctx: bool = False,
         skip_step_stats_timeseries: bool = True,
@@ -67,15 +72,18 @@ class SolverABC(ABC):
         self.goal = goal
         self.metrics = metrics if metrics else Metrics.Singleton()
         self.steps_count = 0
-        self.instrumentation = instrumentation
+        self.extensions = tuple(extensions)
+        self.instruments = set()
         self._step_tag_ctx = step_tag_ctx
         self._skip_step_stats_timeseries = skip_step_stats_timeseries
-        for cb in instrumentation:
-            self.ctx = cb(self.ctx)
+        for installable in extensions:
+            self.ctx = Installations.install(self.ctx, installable)
         self.__pyata_pre_solver_init__()
 
-    def instrument(self: Self, cb: Callable[[Ctx], Ctx]) -> None:
-        self.instrumentation = (*self.instrumentation, cb)
+    def instrument(self: Self, cb: CtxMutation) -> None:
+        if cb in self.instruments:
+            raise ValueError(f'Instrument already installed: {cb}')
+        self.instruments.add(cb)
         self.ctx = cb(self.ctx)
 
     def hook_event(self: Self, key: Any, cb: HookEventCB[Any]) -> None:
@@ -108,16 +116,18 @@ class SolverABC(ABC):
             def subs_cb(ctx: Ctx, data: tuple[Var, Any]
                         ) -> tuple[Ctx, tuple[Var, Any]]:
                 self.steps_count = subs_counter(1)
-                ctx = SolverCtxTags.set(ctx, SUBS_COUNT, self.steps_count)
-                self.ctx = ctx
+                if not Hypotheticals.is_hypothetical(ctx):
+                    ctx = SolverCtxTags.set(ctx, SUBS_COUNT, self.steps_count)
+                    self.ctx = ctx
                 return ctx, data
         else:
             def subs_cb(ctx: Ctx, data: tuple[Var, Any]
                         ) -> tuple[Ctx, tuple[Var, Any]]:
                 self.steps_count = subs_counter(1)
-                self.ctx = ctx
+                if not Hypotheticals.is_hypothetical(ctx):
+                    self.ctx = ctx
                 return ctx, data
-        self.ctx = HooksEffectfulCBs.add(self.ctx, subs_cb)
+        # self.ctx = HooksEffectfulCBs.add(self.ctx, subs_cb)
         self.ctx = Substitutions.hook_substitution(
             self.ctx, subs_cb)
         self.__pyata_solver_init__()

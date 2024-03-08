@@ -3,10 +3,11 @@
 
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from collections.abc import Sized
+import collections.abc as AB
+from itertools import chain
 from math import prod
 from more_itertools import interleave_longest
-from typing import Any, Self
+from typing import Any, Iterable, Self
 
 import rich, \
     scipy          # type: ignore
@@ -14,29 +15,53 @@ import rich.pretty, rich.repr, \
     scipy.special  # pyright: ignore[reportMissingTypeStubs]
 
 from .Constraints import PositiveCardinalityProduct
-from .Facets      import (HooksPipelines, HookPipelineCB)
+from .Facets      import ( HooksPipelines, HookPipelineCB, Cache
+                         , Installations )
 from .Types       import (Var, Ctx, Goal, GoalVared, GoalCtxSized,
                           GoalCtxSizedVared, Constraint, Stream,
                           Connective, MaybeCtxSized, RichReprable,
-                          CtxSelfRichReprable, Named
-                          )
+                          CtxSelfRichReprable, Named, CtxInstallable)
 from .Unification import Unification
-from .Vars        import Vars
+from .Vars        import Vars, Substitutions
 from ..immutables import Map, Set
 
-
 __all__: list[str] = [
-    'GoalABC', 'Succeed', 'Fail', 'Eq', 'Goal', 'And', 'Or'
+    'GoalABC', 'Succeed', 'Fail', 'Eq', 'Goal', 'And', 'Or',
+    'HeurConjChainVars', 'HeurConjCardinality',
+    'ConjunctiveHeuristic', 'DisjunctiveHeuristic',
+    'discern_goals', 'discriminate_goals',
 ]
 
-
 mconcat = interleave_longest
-
 
 def mbind(stream: Stream, goal: Goal) -> Stream:
     for ctx in stream:
         yield from goal(ctx)
 
+def discern_goals(
+    goals: Iterable[Goal]
+) -> tuple[list[GoalCtxSizedVared],
+           list[GoalCtxSized],
+           list[GoalVared]]:
+    """Subsets of goals based on their includive trait categories."""
+    return ([g for g in goals if isinstance(g, GoalCtxSizedVared)],
+            [g for g in goals if isinstance(g, GoalCtxSized)],
+            [g for g in goals if isinstance(g, GoalVared)])
+
+def discriminate_goals(
+    goals: Iterable[Goal]
+) -> tuple[list[GoalCtxSizedVared],
+           list[GoalCtxSized],
+           list[GoalVared],
+           list[Goal]]:
+    """Partition goals into exclusive trait categories."""
+    return ([g for g in goals if isinstance(g, GoalCtxSizedVared)],
+            [g for g in goals if (isinstance(g, GoalCtxSized) and
+                                  not isinstance(g, GoalVared))],
+            [g for g in goals if (isinstance(g, GoalVared) and
+                                  not isinstance(g, GoalCtxSized))],
+            [g for g in goals if (not isinstance(g, GoalVared) and
+                                  not isinstance(g, GoalCtxSized))])
 
 class GoalABC(ABC, Goal, Named, CtxSelfRichReprable):
     name: str
@@ -80,7 +105,7 @@ class GoalABC(ABC, Goal, Named, CtxSelfRichReprable):
                     yield ego.name
                 if isinstance(ego, GoalCtxSized):
                     yield ego.__ctx_len__(ctx)
-                elif isinstance(ego, Sized):
+                elif isinstance(ego, AB.Sized):
                     yield ego.__len__()
                 if isinstance(ego, GoalVared):
                     for var in ego.vars:
@@ -100,6 +125,17 @@ class GoalABC(ABC, Goal, Named, CtxSelfRichReprable):
         pass
 
 
+class GoalVaredABC(GoalABC, GoalVared, ABC):
+    vars: tuple[Var, ...]
+    
+    def get_ctx_vars(self: Self, ctx: Ctx
+    ) -> Iterable[Var]:
+        for var in self.vars:
+            ctx, val = Substitutions.walk(ctx, var)
+            if isinstance(val, Var):
+                yield val
+
+
 class Succeed(GoalABC):
     def __call__(self: Self, ctx: Ctx) -> Stream:
         yield ctx
@@ -111,7 +147,7 @@ class Fail(GoalABC):
         yield
 
 
-class Eq(GoalABC):
+class Eq(GoalVaredABC):
     a: Any
     b: Any
     
@@ -119,6 +155,7 @@ class Eq(GoalABC):
         super().__init__(**kwargs)
         self.a = a
         self.b = b
+        self.vars = tuple(v for v in (a, b) if isinstance(v, Var))
 
     def __call__(self: Self, ctx: Ctx) -> Stream:
         ctx = Unification.unify(ctx, self.a, self.b)
@@ -131,9 +168,10 @@ class Eq(GoalABC):
         yield self.b
 
 
-class ConnectiveABC(GoalABC, Connective, ABC):
+class ConnectiveABC(GoalVaredABC, Connective, ABC):
     goals: tuple[Goal, ...]
     constraints: tuple[Constraint, ...]
+    var_to_goals: Map[Var, Set[GoalVared]]
     RichReprDecor: type[RichReprable]
     
     def __init__(self: Self, goal: Goal, *g_or_c: Goal | Constraint,
@@ -164,17 +202,64 @@ class ConnectiveABC(GoalABC, Connective, ABC):
                 for var in goal.vars:
                     if var not in vars:
                         vars.append(var)
+                    self.var_to_goals.set(
+                        var, self.var_to_goals.get(
+                            var, Set[GoalVared]()).add(goal))
         if vars:
             self.vars: tuple[Var, ...] = tuple(vars)
     
-    def get_vars_entanglement_vec(self: Self) -> list[int]:
-        return [len(self.var_to_goals[var]) for var in self.vars]
+    def get_entanglement(self: Self) -> AB.Mapping[GoalVared, int]:
+        """Returns a mapping of goals to their entanglement value.
+        
+        Entanglement is a measure of shared variables between goals.
+        Computed as the product of the number of goals sharing a variable
+        for goal's variables minus 1. 0 means no shared variables.
+        """
+        return {goal: sum((max((0, len(self.var_to_goals[var]) - 1))
+                            for var in goal.vars))
+                for goal in (g for g in self.goals
+                             if isinstance(g, GoalVared))}
+    
+    def get_ctx_entanglement(self: Self, ctx: Ctx,
+                             goals: Iterable[Goal] | None = None
+    ) -> tuple[Ctx,
+               AB.Mapping[GoalVared, int],
+               AB.Mapping[Var, AB.Set[GoalVared]],
+               AB.Mapping[GoalVared, AB.Set[Var]]]:
+        """Contextual mapping of goals to their entanglement value.
+        
+        If goals are provided, only those goals are considered.  This
+        is useful since heuristics may contextually modify the goals of
+        a connective.
+        """
+        vared: list[GoalVared]
+        if goals is None:
+            goals = self.goals
+        vared = [g for g in goals if isinstance(g, GoalVared)]
+        # these may be different from self.vars after walking
+        goal_to_vars: dict[GoalVared, set[Var]] = defaultdict(set)
+        var_to_goals: dict[Var, set[GoalVared]] = defaultdict(set)
+        for goal in vared:
+            for var in goal.get_ctx_vars(ctx):
+                var_to_goals[var].add(goal)
+                goal_to_vars[goal].add(var)
+        return (ctx,
+                # {goal: sum((max((0, len(var_to_goals[var]) - 1))
+                #              for var in goal_to_vars[goal]))
+                #  for goal in vared},
+                {goal: prod([len(var_to_goals[var])
+                             for var in goal_to_vars[goal]]) - 1
+                 for goal in vared},
+                var_to_goals,
+                goal_to_vars)
 
     def __call__(self: Self, ctx: Ctx) -> Stream:
-        for constraint in self.constraints:
+        ctx, (_, constraints, goals) = HooksPipelines.run(
+            ctx, type(self).hook_heuristic,
+            (self, self.constraints, self.goals))
+        for constraint in constraints:
             ctx = constraint.constrain(ctx)
-        return self._compose_goals(*HooksPipelines.run(
-            ctx, type(self).hook_heuristic, self.goals))
+        return self._compose_goals(ctx, goals)
     
     @classmethod
     @abstractmethod
@@ -185,7 +270,9 @@ class ConnectiveABC(GoalABC, Connective, ABC):
     
     @classmethod
     def hook_heuristic(cls: type[Self], ctx: Ctx,
-                       cb: HookPipelineCB[tuple[Goal, ...]]
+        cb: HookPipelineCB[tuple[Self,
+                                 tuple[Constraint, ...],
+                                 tuple[Goal, ...]]]
     ) -> Ctx:
         return HooksPipelines.hook(ctx, cls.hook_heuristic, cb)
     
@@ -251,16 +338,6 @@ class And(ConnectiveABC, MaybeCtxSized):
                     for var, distrib in goal.distribution.items():
                         for val, num in distrib.items():
                             self.distribution[var][val] += num
-        var_to_goals: dict[Var, set[GoalCtxSizedVared]] = defaultdict(set)
-        for goal in [g for g in self.goals
-                     if isinstance(g, GoalCtxSizedVared)]:
-            for var in goal.vars:
-                var_to_goals[var].add(goal)
-        cardinality_constraints: list[PositiveCardinalityProduct] = []
-        for var, goals in var_to_goals.items():
-            cardinality_constraints.append(
-                PositiveCardinalityProduct((var,), tuple(goals)))
-        self.constraints = (*self.constraints, *cardinality_constraints)
     
     @classmethod
     def _compose_goals(cls: type[Self], ctx: Ctx,
@@ -276,47 +353,6 @@ class And(ConnectiveABC, MaybeCtxSized):
                     for g in self.goals
                     if isinstance(g, GoalCtxSized))
 
-    @staticmethod
-    def heur_conj_chain_vars(
-        ctx: Ctx,
-        data: tuple[Goal, ...],
-    ) -> tuple[Ctx, tuple[Goal, ...]]:
-        goals = data
-        varedsized = [g for g in goals if isinstance(g, GoalCtxSizedVared)]
-        others = [g for g in goals if not isinstance(g, GoalCtxSizedVared)]
-        sizes = {g: g.__ctx_len__(ctx) for g in varedsized}
-        var_to_goals: dict[Var, set[GoalCtxSizedVared]] = defaultdict(set)
-        for goal in varedsized:
-            for var in goal.vars:
-                var_to_goals[var].add(goal)
-        entanglements = {g: prod(len(var_to_goals[var]) for var in g.vars)
-                        for g in varedsized}
-        def order_key(goal: GoalCtxSizedVared) -> float:
-            return sizes[goal] / entanglements[goal]
-        varedsized.sort(key=order_key)
-        staged: set[GoalCtxSizedVared] = set()
-        for i in range(len(varedsized) - 2):
-            goal = varedsized[i]
-            proced = varedsized[0:i+1]
-            staged = staged.union(g for v in goal.vars for g in var_to_goals[v]
-                                if g not in proced)
-            staged.discard(goal)
-            # if chain is broken, we act as if remaining goals were staged
-            # for the iteration.
-            if not staged:
-                staged_ = set(varedsized[i+1:])
-            else:
-                staged_ = staged
-            assert len(staged_) > 0
-            ix_staged = [ix for ix in range(i + 1, len(varedsized))
-                        if varedsized[ix] in staged_]
-            ix_staged.sort(key=lambda ix: order_key(varedsized[ix]))
-            ix0 = ix_staged[0]
-            ix = i + 1
-            if ix != ix0:
-                varedsized[ix], varedsized[ix0] = varedsized[ix0], varedsized[ix]
-        # TODO: run a broadcast or event hook
-        return ctx, tuple(varedsized + others)
 
 class Or(ConnectiveABC, MaybeCtxSized):
     def __init__(self: Self, goal: Goal, *g_or_c: Goal | Constraint,
@@ -341,3 +377,92 @@ class Or(ConnectiveABC, MaybeCtxSized):
         return sum(g.__ctx_len__(ctx)
                    for g in self.goals
                    if isinstance(g, GoalCtxSized))
+
+
+# TODO: abstract generalized heuristic protocol.
+# TODO: decide if heuristics should have hooks generally or not.
+#    if yes, ABC can define __call__ and call __heuristic__.
+class ConnectiveHeuristic[T: ConnectiveABC](
+    HookPipelineCB[tuple[T, tuple[Constraint, ...], tuple[Goal, ...]]],
+    CtxInstallable,
+    ABC
+):
+    def install(self: Self, ctx: Ctx) -> Ctx:
+        return Installations.install(ctx, self)
+
+
+class ConjunctiveHeuristic(ConnectiveHeuristic[And]):
+    def __ctx_install__(self: Self, ctx: Ctx) -> Ctx:
+        return And.hook_heuristic(ctx, self)
+
+
+class DisjunctiveHeuristic(ConnectiveHeuristic[Or]):
+    def __ctx_install__(self: Self, ctx: Ctx) -> Ctx:
+        return Or.hook_heuristic(ctx, self)
+
+
+class HeurConjCardinality(ConjunctiveHeuristic):
+    def __call__(self: Self, ctx: Ctx,
+        data: tuple[And, tuple[Constraint, ...], tuple[Goal, ...]]
+    ) -> tuple[Ctx, tuple[And,
+                          tuple[Constraint, ...],
+                          tuple[Goal, ...]]]:
+        connective, constraints, goals = data
+        varedsized, _, _, _ = discriminate_goals(goals)
+        ctx, _, v2g, _ = connective.get_ctx_entanglement(
+            ctx, goals)
+        cardinality_constraints: list[PositiveCardinalityProduct] = []
+        varsized_set = set(varedsized)
+        for var, gs in v2g.items():
+            cardinality_constraints.append(
+                PositiveCardinalityProduct((var,), tuple(
+                    g for g in gs if g in varsized_set)))
+        data_procced = (
+            connective, (*constraints, *cardinality_constraints), goals)
+        return ctx, data_procced
+
+
+class HeurConjChainVars(ConjunctiveHeuristic):
+    def __call__(self: Self, ctx: Ctx,
+        data: tuple[And, tuple[Constraint, ...], tuple[Goal, ...]]
+    ) -> tuple[Ctx, tuple[And,
+                          tuple[Constraint, ...],
+                          tuple[Goal, ...]]]:
+        # Order conjunction goals by their search-space size over magnitude
+        # of entanglement, clustering goals by their shared variables.
+        connective, constraints, goals = data
+        varedsized, onlysized, onlyvared, others = discriminate_goals(goals)
+        sizes = {g: g.__ctx_len__(ctx) for g in chain(varedsized, onlysized)}
+        ctx, entanglement, v2g, g2v = connective.get_ctx_entanglement(
+            ctx, goals)
+        def order_key(goal: GoalCtxSizedVared) -> float:
+            return sizes[goal] / (entanglement[goal] + 1)
+        varedsized.sort(key=order_key)
+        staged: set[GoalCtxSizedVared] = set()
+        for i in range(len(varedsized) - 2):
+            goal = varedsized[i]
+            proced = varedsized[0:i+1]
+            staged = staged.union(g for v in g2v[goal] for g in v2g[v]
+                                  if g not in proced
+                                  and isinstance(g, GoalCtxSizedVared))
+            staged.discard(goal)
+            # if chain is broken, we act as if remaining goals were staged
+            # for the iteration.
+            if not staged:
+                staged_ = set(varedsized[i+1:])
+            else:
+                staged_ = staged
+            assert len(staged_) > 0
+            ix_staged = [ix for ix in range(i + 1, len(varedsized))
+                        if varedsized[ix] in staged_]
+            ix_staged.sort(key=lambda ix: order_key(varedsized[ix]))
+            ix0 = ix_staged[0]
+            ix = i + 1
+            if ix != ix0:
+                varedsized[ix], varedsized[ix0] = varedsized[ix0], varedsized[ix]
+        onlysized.sort(key=lambda g: g.__ctx_len__(ctx))
+        onlyvared.sort(key=lambda g: entanglement[g], reverse=True)
+        data_procced = (connective, constraints, tuple(chain(
+            varedsized, onlysized, onlyvared, others)))
+        # TODO: decide if broadcast or event hook needs to run or not
+        return ctx, data_procced

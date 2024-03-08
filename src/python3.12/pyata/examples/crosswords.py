@@ -109,11 +109,7 @@ def CTX(ctx: Ctx) -> CtxRichRepr:
 #
 #_____________________________________________________________________________
 
-# Starting with a fresh context, install extensions and configure heuristics.
 ctx: Ctx = NoCtx
-# Randomized intratable factchecking order.
-ctx = FactsTable.FactsGoal.hook_facts(ctx,
-      FactsTable.heur_facts_ord_rnd)
 
 # Let's define some explicit variables for special
 # crossword word shapes.
@@ -127,7 +123,7 @@ ctx = FactsTable.FactsGoal.hook_facts(ctx,
 
 MIN_WORD_LEN  = 2
 MAX_DEFINITIONS = 1
-BIDIRECTIONAL = False  # does not apply to SPECIALS
+BIDIRECTIONAL = True  # does not apply to SPECIALS/DIAGONALS
 
 _ = None
 CROSSWORD: list[list[Var | int | None | str]] = [
@@ -144,6 +140,7 @@ CROSSWORD: list[list[Var | int | None | str]] = [
     [_A , _ , _ ,_S ,_R ,_Q ,_a ,_Z ,_Y , _ ,_i ,_j ,_r ,_q ,_p ],
     [ 0 , 0 , 0 ,_w ,_u , 0 ,_z ,_t ,_x , 0 ,_v , 0 ,_y , 0 , 0 ],
 ]
+
 SPECIALS: list[list[Var]] = [
     [_A,_B,_C,_D,_E,_F,_G,_H,_I,_J],  # P
     [_K,_L,_M,_N,_O,_P,_Q,_R,_S],     # y

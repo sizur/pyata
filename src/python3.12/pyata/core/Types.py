@@ -15,7 +15,8 @@ import sympy          as SY
 __all__: list[str] = [
 
     # Core Types
-    'Ctx', 'NoCtx', 'Facet', 'Var', 'Reifier', 'Arg',
+    'Ctx', 'NoCtx', 'Facet', 'Var', 'Reifier', 'Arg', 'CtxInstallable',
+    'CtxConsumer', 'CtxMutation', 'CtxFunction',
 
     # Facet Convenience Types (ContextManager)
     'FacetBindable', 'BoundFacet',
@@ -36,13 +37,36 @@ __all__: list[str] = [
 ]
 
 #############################################################################
-#  Data Structure Types
-# ----------------------
+#  The Context
+# -------------
 #
 
 type Ctx = Map[type[Facet[Any, Any]], Map[Any, Any]]
 
 NoCtx: Ctx = Map[type['Facet[Any, Any]'], Map[Any, Any]]()
+
+@runtime_checkable
+class CtxConsumer[**P, R](Protocol):
+    def __call__(self: Self, ctx: Ctx, *args: P.args, **kwargs: P.kwargs) -> R:
+        raise NotImplementedError
+
+@runtime_checkable
+class CtxFunction[**P, *R](CtxConsumer[P, tuple[Ctx, *R]], Protocol): pass
+
+@runtime_checkable
+class CtxMutator[**P](CtxConsumer[P, Ctx], Protocol): pass
+
+@runtime_checkable
+class CtxMutation(Protocol):
+    def __call__(self: Self, ctx: Ctx) -> Ctx:
+        raise NotImplementedError
+
+
+@runtime_checkable
+class CtxInstallable(Protocol):
+    """Interface for context extensions to install hooks."""
+    def __ctx_install__(self: Self, ctx: Ctx) -> Ctx:
+        raise NotImplementedError
 
 #############################################################################
 #  Context Facet Types
@@ -180,6 +204,9 @@ class Goal(Protocol):
 @runtime_checkable
 class Vared(Protocol):
     vars: tuple[Var, ...]
+    
+    def get_ctx_vars(self: Self, ctx: Ctx) -> Iterable[Var]:
+        raise NotImplementedError
 
 @runtime_checkable
 class CtxSized(Protocol):

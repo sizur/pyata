@@ -12,15 +12,17 @@ import numpy as np, rich, rich.repr, rich.pretty
 from .Constraints import Constraints, Notin
 from .Facets      import (HooksBroadcasts, HookBroadcastCB, BroadcastKey,
                           HookPipelineCB, HooksPipelines, Hypotheticals )
-from .Goals       import GoalABC
-from .Types       import Ctx, Var, GoalVared, GoalCtxSizedVared, Stream, Relation, Reifier
+from .Goals       import And, GoalVaredABC, ConjunctiveHeuristic, discriminate_goals, \
+                         HeurConjChainVars
+from .Types       import Constraint, Ctx, Goal, Var, GoalCtxSizedVared, Stream, \
+                         Relation, Reifier, Named, CtxInstallable
 from .Unification import Unification
 from .Vars        import Substitutions, Vars
 from ..config     import Settings
 
 
 __all__: list[str] = [
-    'FactsTable', 'FreshRel'
+    'FactsTable', 'FreshRel', 'HeurFactsOrdRnd', 'HeurConjRelevance'
 ]
 
 
@@ -57,7 +59,7 @@ class FactsTable[A: np.dtype[Any], *T](RelationABC[*T], Sized):
     arr_ver_latest_copy: tuple[int, np.ndarray[ND2, A]] | None
     is_static: bool
     
-    class FactsGoal(GoalABC, GoalCtxSizedVared):
+    class FactsGoal(GoalVaredABC, GoalCtxSizedVared):
         # NOTE: Goals are idempotent, so optimized specializations
         #       must be careful to not break this property.
         arr         : np.ndarray[ND2, A]
@@ -100,7 +102,6 @@ class FactsTable[A: np.dtype[Any], *T](RelationABC[*T], Sized):
                     # we determined args[i] is a Var, so it is safe to cast
                     {args[i]: distribution[i].copy() for i in self.free_ixs})
         
-        @cache
         def _filtered(self: Self, ctx: Ctx
         ) -> tuple[
             Ctx,                      # context
@@ -263,7 +264,9 @@ class FactsTable[A: np.dtype[Any], *T](RelationABC[*T], Sized):
             return len(self.arr)
 
         @cache
-        def __ctx_len__(self: Self, ctx: Ctx) -> int:
+        def __ctx_len__(  # pyright: ignore[reportIncompatibleMethodOverride]
+            self: Self, ctx: Ctx
+        ) -> int:
             if self._short_circuit_fail:
                 return 0
             filtered = self._filtered(ctx)
@@ -307,7 +310,6 @@ class FactsTable[A: np.dtype[Any], *T](RelationABC[*T], Sized):
             if self.name:
                 yield self.name
             yield 'vars', self.vars
-            # yield from self.args
 
     def __init__(self: Self,
                  arr: np.ndarray[ND2, A],
@@ -332,11 +334,11 @@ class FactsTable[A: np.dtype[Any], *T](RelationABC[*T], Sized):
         if is_static:
             self.__call__ = self.__static_call__
 
-    def __static_call__(self: Self, *args: *T) -> GoalCtxSizedVared:
+    def __static_call__(self: Self, *args: *T) -> FactsGoal:
         return self.FactsGoal(self.arr, self.distribution, *args,
                               name=self.name)
     
-    def __call__(self: Self, *args: *T) -> GoalCtxSizedVared:
+    def __call__(self: Self, *args: *T) -> FactsGoal:
         if self.arr_ver_latest_copy is None:
             self.arr_ver_latest_copy = (self.arr_ver, self.arr.copy())
         co_ver, co_arr = self.arr_ver_latest_copy
@@ -360,12 +362,6 @@ class FactsTable[A: np.dtype[Any], *T](RelationABC[*T], Sized):
     def get_facts(self: Self) -> Iterable[np.ndarray[ND1, A]]:
         for row in self.arr:
             yield row
-
-    @staticmethod
-    def heur_facts_ord_rnd(
-        ctx: Ctx, data: np.ndarray[ND2, A]
-    ) -> tuple[Ctx, np.ndarray[ND2, A]]:
-        return ctx, np.random.permutation(data)
 
 
 class FreshRel[R: Relation[Any], *T](RelationABC[R, *T]):
@@ -394,7 +390,7 @@ class FreshRel[R: Relation[Any], *T](RelationABC[R, *T]):
     """
     reifier: tuple[Reifier, ...]
     
-    class FreshGoal(GoalABC, GoalVared):
+    class FreshGoal(GoalVaredABC):
         rel: R
         vars: tuple[Var, ...]
         reifier: tuple[Reifier, ...]
@@ -433,3 +429,61 @@ class FreshRel[R: Relation[Any], *T](RelationABC[R, *T]):
 #     def __call__(self: Self, /, relation: R, *args: *T]) -> GoalVared:
 #         ...
 
+
+class HeurFactsOrdRnd(
+    HookPipelineCB[np.ndarray[ND2, Any]],
+    CtxInstallable
+):
+    def __ctx_install__(self: Self, ctx: Ctx) -> Ctx:
+        return FactsTable.FactsGoal.hook_facts(ctx, self)
+    
+    def __call__(self: Self, ctx: Ctx,
+        data: np.ndarray[ND2, Any]
+    ) -> tuple[Ctx, np.ndarray[ND2, Any]]:
+        return ctx, np.random.permutation(data)
+
+
+class HeurConjRelevance(ConjunctiveHeuristic):
+    def __call__(self: Self, ctx: Ctx,
+        data: tuple[And, tuple[Constraint, ...], tuple[Goal, ...]]
+    ) -> tuple[Ctx, tuple[And,
+                          tuple[Constraint, ...],
+                          tuple[Goal, ...]]]:
+        connective, constraints, goals = data
+        varedsized, _, _, _ = discriminate_goals(goals)
+        ctx, entanglement, v2g, g2v = connective.get_ctx_entanglement(
+            ctx, varedsized)
+        entangled_goals = {g for g in entanglement if entanglement[g] > 0}
+        entangled_vars = {v for v in v2g if len(v2g[v]) > 1}
+        relevance_goals: list[FactsTable.FactsGoal] = []
+        n: int = 0
+        for goal in entangled_goals:
+            assert isinstance(goal, GoalCtxSizedVared)
+            relevant_vars = tuple(v for v in g2v[goal] if v in entangled_vars)
+            if relevant_vars and len(relevant_vars) < len(goal.vars):
+                facts: set[tuple[Any, ...]] = set()
+                hyp = Hypotheticals.get_hypothetical(ctx)
+                for hyp in goal(hyp):
+                    fact: list[Any] = []
+                    for var in relevant_vars:
+                        hyp, val = Substitutions.walk(hyp, var)
+                        fact.append(val)
+                    facts.add(tuple(fact))
+                if facts and len(facts) < goal.__ctx_len__(ctx):
+                    if isinstance(goal, Named):
+                        goal_name = goal.name
+                    else:
+                        n += 1
+                        goal_name = f'goal_{n}'
+                    facts_rel = FactsTable[Any, Any](
+                        np.array([list(fact)
+                                  for fact in facts]),
+                        name=f'{type(self).__name__}({goal_name})',
+                        is_static=True)
+                    relevance_goals.append(facts_rel(*relevant_vars))
+        if relevance_goals:
+            ctx, (_, _, relevance_goals_) = HeurConjChainVars()(
+                ctx, (connective, constraints, tuple(relevance_goals)))
+            goals = (*relevance_goals_, *goals)
+        data_procced = (connective, constraints, goals)
+        return ctx, data_procced
