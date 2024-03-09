@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 from abc import ABC
+import collections.abc as AB
 from typing import Any, ClassVar, Final, Iterable, Iterator, Self
 
 import rich
@@ -10,7 +11,7 @@ import rich.pretty, rich.repr
 
 from .Constraints import Constraints
 from .Facets import FacetABC, FacetRichReprMixin, CtxRichRepr, \
-    HooksEvents, HooksPipelines, HooksBroadcasts, HooksEffectfulCBs, \
+    HooksEvents, HooksPipelines, HooksBroadcasts, \
     Installations, Hypotheticals
 from .Goals import HeurConjChainVars, HeurConjCardinality
 from .Metrics import Metrics
@@ -210,5 +211,6 @@ class Solver(SolverABC, SolverRichReprCtxMixin):
         return rich.pretty.pretty_repr(ret)
 
 
-class SolverCtxTags(FacetABC[Any, Any], FacetRichReprMixin[Any]):
-    default: ClassVar[Any] = None
+class SolverCtxTags(FacetABC[AB.Hashable, AB.Hashable],
+                    FacetRichReprMixin[Any]):
+    default: ClassVar[AB.Hashable] = None

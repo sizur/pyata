@@ -15,7 +15,7 @@ import rich.pretty, rich.repr, \
     scipy.special  # pyright: ignore[reportMissingTypeStubs]
 
 from .Constraints import PositiveCardinalityProduct
-from .Facets      import ( HooksPipelines, HookPipelineCB, Cache
+from .Facets      import ( HooksPipelines, HookPipelineCB
                          , Installations )
 from .Types       import (Var, Ctx, Goal, GoalVared, GoalCtxSized,
                           GoalCtxSizedVared, Constraint, Stream,

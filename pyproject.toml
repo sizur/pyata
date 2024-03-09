@@ -85,7 +85,7 @@ strictDictionaryInference = true
 
 [tool.pytest.ini_options]
 minversion = "6.0"
-addopts = " --strict-config -ra -q --timeout=5"
+addopts = " --strict-config -ra -q --timeout=1"
 python_files = "*.py"
 testpaths = [
     "tests/python3.12",

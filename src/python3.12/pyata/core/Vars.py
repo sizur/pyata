@@ -4,7 +4,7 @@
 
 from abc import ABC, abstractmethod
 from typing import (
-    Any, Callable, ClassVar, Final, Iterable, Mapping, TypedDict, Self, cast
+    Any, ClassVar, Final, Iterable, Mapping, TypedDict, Self, cast
 )
 
 import immutables
@@ -140,7 +140,7 @@ class VarsReifiers(FacetABC[Var, Reifier | None],
     def _val_repr(cls: type[Self], ctx: Ctx, key: Var) -> Any:
         val: Reifier | None = cls.get(ctx, key)
         try:
-            return val.__name__
+            return val.__name__  # type: ignore
         except AttributeError:
             return val
 
@@ -322,7 +322,7 @@ class DomainABC(ABC):
 
 class FiniteDiscreteDomain[T](Set[T], DomainABC):
     def expand(self: Self, vals: Iterable[T]) -> Self:
-        return self.union(vals)
+        return self.union(set(vals))
     
     def contract(self: Self, vals: Iterable[T]) -> Self:
         def mutator(s: SetMutation[T]) -> None:
@@ -332,17 +332,19 @@ class FiniteDiscreteDomain[T](Set[T], DomainABC):
 
 
 # TODO: Create a protocol for domains
-class VarDomains(FacetABC[Var, DomainABC | None], FacetRichReprMixin[Var]):
-    default: ClassVar[DomainABC | None] = None
+class VarDomains(FacetABC[Var, FiniteDiscreteDomain[Any] | None],
+                 FacetRichReprMixin[Var]
+):
+    default: ClassVar[FiniteDiscreteDomain[Any] | None] = None
 
     @classmethod
     def expand(
         cls: type[Self],
         ctx: Ctx,
         var: Var,
-        vals: DomainABC
+        vals: FiniteDiscreteDomain[Any]
     ) -> Ctx:
-        domain: DomainABC | None = cls.get(ctx, var)
+        domain: FiniteDiscreteDomain[Any] | None = cls.get(ctx, var)
         if domain is None:
             return cls.set(ctx, var, vals)
         else:
@@ -353,9 +355,9 @@ class VarDomains(FacetABC[Var, DomainABC | None], FacetRichReprMixin[Var]):
         cls: type[Self],
         ctx: Ctx,
         var: Var,
-        vals: DomainABC
+        vals: FiniteDiscreteDomain[Any]
     ) -> Ctx:
-        domain: DomainABC | None = cls.get(ctx, var)
+        domain: FiniteDiscreteDomain[Any] | None = cls.get(ctx, var)
         if domain is None:
             return cls.set(ctx, var, vals)
         else:

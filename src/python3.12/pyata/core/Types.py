@@ -15,8 +15,8 @@ import sympy          as SY
 __all__: list[str] = [
 
     # Core Types
-    'Ctx', 'NoCtx', 'Facet', 'Var', 'Reifier', 'Arg', 'CtxInstallable',
-    'CtxConsumer', 'CtxMutation', 'CtxFunction',
+    'Ctx', 'NoCtx', 'Facet', 'Var', 'Reifier', 'Arg', 'ArgStruct',
+    'CtxInstallable', 'CtxConsumer', 'CtxMutation', 'CtxFunction',
 
     # Facet Convenience Types (ContextManager)
     'FacetBindable', 'BoundFacet',
@@ -251,14 +251,15 @@ class Constraint(CtxSelfRichReprable, Protocol):
         raise NotImplementedError
 
 
-class Relation[*T](Protocol):
-    name: str
-    def __call__(self: Self, *args: *T) -> GoalVared:
+class Relation[*T, G: Goal](Protocol):
+    def __call__(self: Self, *args: *T) -> G:
         raise NotImplementedError
 
 
-class RelationSized[*T](Relation[*T], Sized, Protocol):
-    def __call__(self: Self, *args: *T) -> GoalCtxSizedVared:
+class RelationSized[*T, G: GoalCtxSizedVared](
+    Relation[*T, G], Sized, Named, Protocol
+):
+    def __call__(self: Self, *args: *T) -> G:
         raise NotImplementedError
     def get_facts(self: Self) -> tuple[*T]:
         raise NotImplementedError
@@ -294,4 +295,6 @@ Var = SY.Symbol
 
 type Reifier = Callable[[Any], Any]
 
-type Arg[T] = T | Var
+type Arg[T] = Var | T
+
+type ArgStruct[*T] = Var | tuple[*T]

@@ -122,8 +122,8 @@ ctx: Ctx = NoCtx
 
 
 MIN_WORD_LEN  = 2
-MAX_DEFINITIONS = 1
-BIDIRECTIONAL = True  # does not apply to SPECIALS/DIAGONALS
+MAX_DEFINITIONS = 1  # number of word definitions to show
+BIDIRECTIONAL = False  # does not apply to SPECIALS
 
 _ = None
 CROSSWORD: list[list[Var | int | None | str]] = [
@@ -138,7 +138,9 @@ CROSSWORD: list[list[Var | int | None | str]] = [
     [_C ,_J ,_I ,_L ,_M ,_O , _ ,_V ,_W , _ ,_g , _ , _ ,_m ,_n ],
     [_B , _ , _ , _ , _ ,_P ,_b , _ ,_X , _ ,_h , _ ,_s , _ ,_o ],
     [_A , _ , _ ,_S ,_R ,_Q ,_a ,_Z ,_Y , _ ,_i ,_j ,_r ,_q ,_p ],
-    [ 0 , 0 , 0 ,_w ,_u , 0 ,_z ,_t ,_x , 0 ,_v , 0 ,_y , 0 , 0 ],
+#   [ 0 ,'E','P',_w ,_u , 0 ,_z ,_t ,_x ,'C',_v ,'N',_y ,'M', 0 ],
+    [ 0 , 0 , 0 ,_w ,_u , 0 ,_z ,_t ,'R', 0 ,'I', 0 ,_y , 0 , 0 ],
+#   [ 0 , 0 , 0 ,_w ,_u , 0 ,_z ,_t ,_x , 0 ,_v , 0 ,_y , 0 , 0 ],
 ]
 
 SPECIALS: list[list[Var]] = [

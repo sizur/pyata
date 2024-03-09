@@ -4,8 +4,9 @@
 from __future__ import annotations
 from abc import ABC
 from collections.abc import Sized
+from inspect import signature
 from functools import cache
-from typing import Any, Iterable, Self, cast
+from typing import Any, Callable, Iterable, Self, cast
 
 import numpy as np, rich, rich.repr, rich.pretty
 
@@ -14,15 +15,16 @@ from .Facets      import (HooksBroadcasts, HookBroadcastCB, BroadcastKey,
                           HookPipelineCB, HooksPipelines, Hypotheticals )
 from .Goals       import And, GoalVaredABC, ConjunctiveHeuristic, discriminate_goals, \
                          HeurConjChainVars
-from .Types       import Constraint, Ctx, Goal, Var, GoalCtxSizedVared, Stream, \
-                         Relation, Reifier, Named, CtxInstallable
+from .Types       import Constraint, Ctx, Goal, Var, Arg, GoalCtxSizedVared, Stream, \
+                         Relation, Reifier, Named, CtxInstallable, GoalVared
 from .Unification import Unification
 from .Vars        import Substitutions, Vars
 from ..config     import Settings
 
 
 __all__: list[str] = [
-    'FactsTable', 'FreshRel', 'HeurFactsOrdRnd', 'HeurConjRelevance'
+    'FactsTable', 'FreshRel', 'HeurFactsOrdRnd', 'HeurConjRelevance',
+    'fresh',
 ]
 
 
@@ -32,7 +34,7 @@ type ND2 = tuple[int, int]
 DEBUG = Settings().DEBUG
 
 
-class RelationABC[*T](ABC, Relation[*T]):
+class RelationABC[*T, G: Goal](ABC, Relation[*T, G], Named):
     name: str
     
     def __init__(self: Self, *, name: str | None = None) -> None:
@@ -49,7 +51,9 @@ class RelationABC[*T](ABC, Relation[*T]):
                         f'Cannot infer name for {self!r}. '
                     ) from e
 
-class FactsTable[A: np.dtype[Any], *T](RelationABC[*T], Sized):
+class FactsTable[A: np.dtype[Any], *T](
+    RelationABC[*T, GoalCtxSizedVared], Sized
+):
     arr: np.ndarray[ND2, A]
     distribution: dict[int, dict[A, int]]
     # NOTE: We want to share as much stricture as possible with the produced
@@ -364,9 +368,12 @@ class FactsTable[A: np.dtype[Any], *T](RelationABC[*T], Sized):
             yield row
 
 
-class FreshRel[R: Relation[Any], *T](RelationABC[R, *T]):
+class FreshRel[R: Relation[Any], *T](RelationABC[R, *T, GoalVared]):
     """A higher-order relation providing fresh variables to a relation.
-    
+
+    If `reifier` is single, and `num` is not provided, number of fresh
+    variables is inferred from its signature when relation is supplied.
+        
     Every argument to the argument relation will be a fresh variable.
     All variables the argument relation depends on (captured by its closure)
     should be provided after relation parameter during relational call
@@ -419,7 +426,30 @@ class FreshRel[R: Relation[Any], *T](RelationABC[R, *T]):
         self.reifier = reifier
     
     def __call__(self: Self, rel: R, *args: *T) -> FreshGoal:
-        return self.FreshGoal(self.reifier, rel, *args)
+        arity = len(signature(rel).parameters)
+        reifier = self.reifier
+        if len(reifier) == 1:
+            reifier = reifier * arity
+        if len(reifier) != arity:
+            raise ValueError(
+                f'Expected {arity} reifiers, got {len(reifier)}')
+        return self.FreshGoal(reifier, rel, *args)
+
+# For now, see usage in `pyata.core.BinPU` module.
+def fresh[*T](
+    reifier: Reifier | tuple[Reifier, ...] | None = None,
+    num: int | None = None,
+    /,
+    # TODO: investigate if we can `inspect` this automatically
+    exist: Arg[Any] | tuple[Arg[Any], ...] = ()
+) -> Callable[[Relation[*T,  # pyright: ignore[reportInvalidTypeVarUse]
+                        Any]], FreshRel.FreshGoal]:
+    """Converts relation to goal with fresh variables for relation arguments."""
+    def decorator(rel: Relation[*T, Any]
+                  ) -> FreshRel.FreshGoal:
+        exists = exist if isinstance(exist, tuple) else (exist,)
+        return FreshRel(reifier, num)(rel, *exists)
+    return decorator
 
 
 # # TODO: higher order relation

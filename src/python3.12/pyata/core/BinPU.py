@@ -4,16 +4,16 @@
 from __future__ import annotations
 from inspect import signature
 from itertools import product
-from typing import Callable, Final, Self
+from typing import Callable, Final, Self, cast
 
 import numpy as np
 
 # from pyata.core.Vars import Substitutions
 
 # from .Constraints import ConstraintVarsABC
-from .Goals import And
-from .Types import GoalVared, GoalCtxSizedVared, Arg #, Ctx, Var
-from .Relations import FactsTable, FreshRel
+from .Goals import And, Or, Eq
+from .Types import GoalVared, GoalCtxSizedVared, Arg, ArgStruct #, Ctx, Var
+from .Relations import FactsTable, fresh
 
 
 __all__: list[str] = [
@@ -179,29 +179,40 @@ UINT8_REL: Final[HexRel[Hex, Hex, Byte]] = HexRel(
 UINT8_NOT_REL: Final[HexRel[Byte, Byte]] = HexRel(
     'UINT8_NOT', uint8_not_mapper)
 
-def uint8(hi: Hex, lo: Hex, mk: Byte) -> GoalCtxSizedVared:
-    return UINT8_REL(hi, lo, mk)
+def uint8(a: Byte | ArgStruct[Hex, Hex],
+          b: Byte | ArgStruct[Hex, Hex]
+) -> GoalVared:
+    # NOTE: when relation is wrapped in @fresh, it is converted to a goal
+    #       with fresh variables.
+    @fresh(int, exist=(a, b))
+    def goal(hi: Hex, lo: Hex) -> GoalVared:
+        return Or(And(Eq(a, (hi, lo)),
+                      UINT8_REL(hi, lo, cast(Byte, b))),
+                  And(Eq(b, (hi, lo)),
+                      UINT8_REL(hi, lo, cast(Byte, a))))
+    return goal
 
-def uint8_not(a: Hex, not_a: Byte) -> GoalCtxSizedVared:
+def uint8_not(a: Byte, not_a: Byte) -> GoalCtxSizedVared:
     return UINT8_NOT_REL(a, not_a)
 
 def uint8_add(a: Byte, b: Byte, sum: Byte, carry: Hex
               ) -> GoalVared:
     # s: sum, c: carry, i: intermediate
-    def rel(a_lo: Hex, b_lo: Hex, s_lo: Hex, c_lo: Hex,
-            a_hi: Hex, i_hi: Hex, ic_hi: Hex,
-            b_hi: Hex, s_hi: Hex, c_hi: Hex
-    ) -> And:
+    @fresh(int, exist=(a, b, sum, carry))
+    def goal(a_lo: Hex, b_lo: Hex,  s_lo: Hex, c_lo: Hex,
+             a_hi: Hex, i_hi: Hex,            ic_hi: Hex,
+             b_hi: Hex, s_hi: Hex,             c_hi: Hex
+    ) -> GoalVared:
         return And(
-            uint8(a_hi, a_lo, a),
-            uint8(b_hi, b_lo, b),
+            uint8((a_hi, a_lo), a),
+            uint8((b_hi, b_lo), b),
             uint4_add(a_lo, b_lo, s_lo, c_lo),
             uint4_add(c_lo, a_hi, i_hi, ic_hi),
             uint4_add(i_hi, b_hi, s_hi, c_hi),
             uint4_add(ic_hi, c_hi, carry, 0),
-            uint8(s_hi, s_lo, sum)
+            uint8((s_hi, s_lo), sum)
         )
-    return FreshRel(int, 10)(rel)
+    return goal
 
 def uint8_diff(minuend: Byte, subtrahend: Byte, diff: Byte, borrow: Hex
                ) -> GoalVared:

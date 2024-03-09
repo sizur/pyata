@@ -11,8 +11,8 @@ __all__: list[str] = [
     'isCtxSelfRichReprable', 'isRichReprable', 'Connective',
     'Vared', 'Relation', 'GoalCtxSizedVared', 'CtxSized',
     'RelationSized', 'GoalCtxSized', 'GoalVared', 'MaybeCtxSized',
-    'Reifier', 'Progressable', 'Named', 'Arg', 'CtxInstallable',
-    'CtxConsumer', 'CtxFunction', 'CtxMutation',
+    'Reifier', 'Progressable', 'Named', 'Arg', 'ArgStruct',
+    'CtxInstallable', 'CtxConsumer', 'CtxFunction', 'CtxMutation',
     
     'FacetABC', 'FacetRichReprMixin', 'CtxRichRepr',
     'CtxClsRichReprable', 'CtxSelfRichReprable',
@@ -55,8 +55,8 @@ from .Types       import ( Ctx, NoCtx, Facet, FacetBindable, BoundFacet    #
                          , Connective, Relation, Vared, GoalCtxSizedVared  #
                          , CtxSized, RelationSized, GoalCtxSized, GoalVared
                          , MaybeCtxSized, Reifier, Progressable, Named     #
-                         , Arg, CtxInstallable, CtxConsumer, CtxFunction   #
-                         , CtxMutation                                     )
+                         , Arg, ArgStruct, CtxInstallable, CtxConsumer     #
+                         , CtxFunction, CtxMutation                        )
 from .Facets      import ( FacetABC, FacetRichReprMixin, CtxRichRepr       #
                          , HooksPipelines, HooksEvents, HooksBroadcasts    #
                          , HooksShortCircuit, Hypotheticals                #
